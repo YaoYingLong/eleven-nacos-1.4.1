@@ -140,8 +140,7 @@ public class ServiceManager implements RecordListener<Service> {
             // the possibility that the service cache information may just be deleted
             // and then created due to the heartbeat mechanism
 
-            GlobalExecutor.scheduleServiceAutoClean(new EmptyServiceAutoClean(), cleanEmptyServiceDelay,
-                    cleanEmptyServicePeriod);
+            GlobalExecutor.scheduleServiceAutoClean(new EmptyServiceAutoClean(), cleanEmptyServiceDelay, cleanEmptyServicePeriod);
         }
 
         try {
@@ -167,8 +166,7 @@ public class ServiceManager implements RecordListener<Service> {
     public void addUpdatedServiceToQueue(String namespaceId, String serviceName, String serverIP, String checksum) {
         lock.lock();
         try {
-            toBeUpdatedServicesQueue
-                    .offer(new ServiceKey(namespaceId, serviceName, serverIP, checksum), 5, TimeUnit.MILLISECONDS);
+            toBeUpdatedServicesQueue.offer(new ServiceKey(namespaceId, serviceName, serverIP, checksum), 5, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             toBeUpdatedServicesQueue.poll();
             toBeUpdatedServicesQueue.add(new ServiceKey(namespaceId, serviceName, serverIP, checksum));
@@ -269,27 +267,20 @@ public class ServiceManager implements RecordListener<Service> {
     }
 
     private class ServiceUpdater implements Runnable {
-
         String namespaceId;
-
         String serviceName;
-
         String serverIP;
-
         public ServiceUpdater(ServiceKey serviceKey) {
             this.namespaceId = serviceKey.getNamespaceId();
             this.serviceName = serviceKey.getServiceName();
             this.serverIP = serviceKey.getServerIP();
         }
-
         @Override
         public void run() {
             try {
                 updatedHealthStatus(namespaceId, serviceName, serverIP);
             } catch (Exception e) {
-                Loggers.SRV_LOG
-                        .warn("[DOMAIN-UPDATER] Exception while update service: {} from {}, error: {}", serviceName,
-                                serverIP, e);
+                Loggers.SRV_LOG.warn("[DOMAIN-UPDATER] Exception while update service: {} from {}, error: {}", serviceName, serverIP, e);
             }
         }
     }
@@ -308,37 +299,27 @@ public class ServiceManager implements RecordListener<Service> {
     public void updatedHealthStatus(String namespaceId, String serviceName, String serverIP) {
         Message msg = synchronizer.get(serverIP, UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
         JsonNode serviceJson = JacksonUtils.toObj(msg.getData());
-
         ArrayNode ipList = (ArrayNode) serviceJson.get("ips");
         Map<String, String> ipsMap = new HashMap<>(ipList.size());
         for (int i = 0; i < ipList.size(); i++) {
-
             String ip = ipList.get(i).asText();
             String[] strings = ip.split("_");
             ipsMap.put(strings[0], strings[1]);
         }
-
         Service service = getService(namespaceId, serviceName);
-
         if (service == null) {
             return;
         }
-
         boolean changed = false;
-
         List<Instance> instances = service.allIPs();
         for (Instance instance : instances) {
-
             boolean valid = Boolean.parseBoolean(ipsMap.get(instance.toIpAddr()));
             if (valid != instance.isHealthy()) {
                 changed = true;
                 instance.setHealthy(valid);
-                Loggers.EVT_LOG.info("{} {SYNC} IP-{} : {}:{}@{}", serviceName,
-                        (instance.isHealthy() ? "ENABLED" : "DISABLED"), instance.getIp(), instance.getPort(),
-                        instance.getClusterName());
+                Loggers.EVT_LOG.info("{} {SYNC} IP-{} : {}:{}@{}", serviceName, (instance.isHealthy() ? "ENABLED" : "DISABLED"), instance.getIp(), instance.getPort(), instance.getClusterName());
             }
         }
-
         if (changed) {
             pushService.serviceChanged(service);
             if (Loggers.EVT_LOG.isDebugEnabled()) {
@@ -347,12 +328,9 @@ public class ServiceManager implements RecordListener<Service> {
                 for (Instance instance : allIps) {
                     stringBuilder.append(instance.toIpAddr()).append("_").append(instance.isHealthy()).append(",");
                 }
-                Loggers.EVT_LOG
-                        .debug("[HEALTH-STATUS-UPDATED] namespace: {}, service: {}, ips: {}", service.getNamespaceId(),
-                                service.getName(), stringBuilder.toString());
+                Loggers.EVT_LOG.debug("[HEALTH-STATUS-UPDATED] namespace: {}, service: {}, ips: {}", service.getNamespaceId(), service.getName(), stringBuilder.toString());
             }
         }
-
     }
 
     public Set<String> getAllServiceNames(String namespaceId) {
@@ -1014,8 +992,7 @@ public class ServiceManager implements RecordListener<Service> {
          */
         public void addItem(String serviceName, String checksum) {
             if (StringUtils.isEmpty(serviceName) || StringUtils.isEmpty(checksum)) {
-                Loggers.SRV_LOG.warn("[DOMAIN-CHECKSUM] serviceName or checksum is empty,serviceName: {}, checksum: {}",
-                        serviceName, checksum);
+                Loggers.SRV_LOG.warn("[DOMAIN-CHECKSUM] serviceName or checksum is empty,serviceName: {}, checksum: {}", serviceName, checksum);
                 return;
             }
             serviceName2Checksum.put(serviceName, checksum);
@@ -1023,14 +1000,10 @@ public class ServiceManager implements RecordListener<Service> {
     }
 
     private class EmptyServiceAutoClean implements Runnable {
-
         @Override
         public void run() {
-
             // Parallel flow opening threshold
-
             int parallelSize = 100;
-
             serviceMap.forEach((namespace, stringServiceMap) -> {
                 Stream<Map.Entry<String, Service>> stream = null;
                 if (stringServiceMap.size() > parallelSize) {
@@ -1043,28 +1016,19 @@ public class ServiceManager implements RecordListener<Service> {
                     return distroMapper.responsible(serviceName);
                 }).forEach(entry -> stringServiceMap.computeIfPresent(entry.getKey(), (serviceName, service) -> {
                     if (service.isEmpty()) {
-
                         // To avoid violent Service removal, the number of times the Service
                         // experiences Empty is determined by finalizeCnt, and if the specified
                         // value is reached, it is removed
-
                         if (service.getFinalizeCount() > maxFinalizeCount) {
-                            Loggers.SRV_LOG.warn("namespace : {}, [{}] services are automatically cleaned", namespace,
-                                    serviceName);
+                            Loggers.SRV_LOG.warn("namespace : {}, [{}] services are automatically cleaned", namespace, serviceName);
                             try {
                                 easyRemoveService(namespace, serviceName);
                             } catch (Exception e) {
-                                Loggers.SRV_LOG.error("namespace : {}, [{}] services are automatically clean has "
-                                        + "error : {}", namespace, serviceName, e);
+                                Loggers.SRV_LOG.error("namespace : {}, [{}] services are automatically clean has error : {}", namespace, serviceName, e);
                             }
                         }
-
                         service.setFinalizeCount(service.getFinalizeCount() + 1);
-
-                        Loggers.SRV_LOG
-                                .debug("namespace : {}, [{}] The number of times the current service experiences "
-                                                + "an empty instance is : {}", namespace, serviceName,
-                                        service.getFinalizeCount());
+                        Loggers.SRV_LOG.debug("namespace : {}, [{}] The number of times the current service experiences an empty instance is : {}", namespace, serviceName, service.getFinalizeCount());
                     } else {
                         service.setFinalizeCount(0);
                     }
@@ -1076,49 +1040,36 @@ public class ServiceManager implements RecordListener<Service> {
 
     private class ServiceReporter implements Runnable {
         @Override
-        public void run() {
+        public void run() { // 每5s执行一次，serviceStatusSynchronizationPeriodMillis默认值为5s
             try {
                 Map<String, Set<String>> allServiceNames = getAllServiceNames();
                 if (allServiceNames.size() <= 0) {
-                    //ignore
-                    return;
+                    return; // 若客户端服务列表为空
                 }
-
                 for (String namespaceId : allServiceNames.keySet()) {
-
                     ServiceChecksum checksum = new ServiceChecksum(namespaceId);
-
-                    for (String serviceName : allServiceNames.get(namespaceId)) {
+                    for (String serviceName : allServiceNames.get(namespaceId)) { // 对注册在本机器的客户端服务重新计算checksum
                         if (!distroMapper.responsible(serviceName)) {
-                            continue;
+                            continue; // 若当前客户端服务不是注册在本机的服务
                         }
-
                         Service service = getService(namespaceId, serviceName);
-
                         if (service == null || service.isEmpty()) {
                             continue;
                         }
-
                         service.recalculateChecksum();
-
                         checksum.addItem(serviceName, service.getChecksum());
                     }
-
                     Message msg = new Message();
-
                     msg.setData(JacksonUtils.toJson(checksum));
-
                     Collection<Member> sameSiteServers = memberManager.allMembers();
-
                     if (sameSiteServers == null || sameSiteServers.size() <= 0) {
-                        return;
+                        return; // 若服务端成员列表为空
                     }
-
                     for (Member server : sameSiteServers) {
                         if (server.getAddress().equals(NetUtils.localServer())) {
-                            continue;
+                            continue; // 跳过本机
                         }
-                        synchronizer.send(server.getAddress(), msg);
+                        synchronizer.send(server.getAddress(), msg); // 将本机注册的客户端服务校验发送到其他服端机器上
                     }
                 }
             } catch (Exception e) {

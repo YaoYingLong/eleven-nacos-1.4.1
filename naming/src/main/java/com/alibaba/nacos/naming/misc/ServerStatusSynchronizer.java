@@ -34,7 +34,7 @@ import java.util.Map;
 public class ServerStatusSynchronizer implements Synchronizer {
 
     @Override
-    public void send(final String serverIP, Message msg) {
+    public void send(final String serverIP, Message msg) { // 调用HTTP接口/v1/ns/operator/server/status接口
         if (StringUtils.isEmpty(serverIP)) {
             return;
         }

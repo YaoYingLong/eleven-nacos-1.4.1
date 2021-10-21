@@ -49,32 +49,32 @@ import static com.alibaba.nacos.sys.env.Constants.USE_ONLY_SITE_INTERFACES;
  * @author Nacos
  */
 public class InetUtils {
-    
+
     private static final Logger LOG = LoggerFactory.getLogger(InetUtils.class);
-    
+
     private static String selfIP;
-    
+
     private static boolean useOnlySiteLocalInterface = false;
-    
+
     private static boolean preferHostnameOverIP = false;
-    
+
     private static final List<String> PREFERRED_NETWORKS = new ArrayList<String>();
-    
+
     private static final List<String> IGNORED_INTERFACES = new ArrayList<String>();
-    
+
     static {
         NotifyCenter.registerToSharePublisher(IPChangeEvent.class);
-        
+
         useOnlySiteLocalInterface = Boolean.parseBoolean(EnvUtil.getProperty(USE_ONLY_SITE_INTERFACES));
-        
+
         List<String> networks = EnvUtil.getPropertyList(Constants.PREFERRED_NETWORKS);
         PREFERRED_NETWORKS.addAll(networks);
-        
+
         List<String> interfaces = EnvUtil.getPropertyList(Constants.IGNORED_INTERFACES);
         IGNORED_INTERFACES.addAll(interfaces);
-        
+
         final long delayMs = Long.getLong("nacos.core.inet.auto-refresh", 30_000L);
-        
+
         Runnable ipAutoRefresh = new Runnable() {
             @Override
             public void run() {
@@ -90,12 +90,10 @@ public class InetUtils {
                 String tmpSelfIP = nacosIP;
                 if (StringUtils.isBlank(tmpSelfIP)) {
                     preferHostnameOverIP = Boolean.getBoolean(SYSTEM_PREFER_HOSTNAME_OVER_IP);
-                    
                     if (!preferHostnameOverIP) {
-                        preferHostnameOverIP = Boolean
-                                .parseBoolean(EnvUtil.getProperty(PREFER_HOSTNAME_OVER_IP));
+                        preferHostnameOverIP = Boolean.parseBoolean(EnvUtil.getProperty(PREFER_HOSTNAME_OVER_IP));
                     }
-                    
+
                     if (preferHostnameOverIP) {
                         InetAddress inetAddress;
                         try {
@@ -112,12 +110,10 @@ public class InetUtils {
                         tmpSelfIP = Objects.requireNonNull(findFirstNonLoopbackAddress()).getHostAddress();
                     }
                 }
-                if (IPUtil.PREFER_IPV6_ADDRESSES && !tmpSelfIP.startsWith(IPUtil.IPV6_START_MARK) && !tmpSelfIP
-                        .endsWith(IPUtil.IPV6_END_MARK)) {
+                if (IPUtil.PREFER_IPV6_ADDRESSES && !tmpSelfIP.startsWith(IPUtil.IPV6_START_MARK) && !tmpSelfIP.endsWith(IPUtil.IPV6_END_MARK)) {
                     tmpSelfIP = IPUtil.IPV6_START_MARK + tmpSelfIP + IPUtil.IPV6_END_MARK;
                     if (StringUtils.contains(tmpSelfIP, IPUtil.PERCENT_SIGN_IN_IPV6)) {
-                        tmpSelfIP = tmpSelfIP.substring(0, tmpSelfIP.indexOf(IPUtil.PERCENT_SIGN_IN_IPV6))
-                                + IPUtil.IPV6_END_MARK;
+                        tmpSelfIP = tmpSelfIP.substring(0, tmpSelfIP.indexOf(IPUtil.PERCENT_SIGN_IN_IPV6)) + IPUtil.IPV6_END_MARK;
                     }
                 }
                 if (!Objects.equals(selfIP, tmpSelfIP) && Objects.nonNull(selfIP)) {
@@ -129,14 +125,13 @@ public class InetUtils {
                 selfIP = tmpSelfIP;
             }
         };
-        
         ipAutoRefresh.run();
     }
-    
+
     public static String getSelfIP() {
         return selfIP;
     }
-    
+
     /**
      * findFirstNonLoopbackAddress.
      *
@@ -144,7 +139,6 @@ public class InetUtils {
      */
     public static InetAddress findFirstNonLoopbackAddress() {
         InetAddress result = null;
-        
         try {
             int lowest = Integer.MAX_VALUE;
             for (Enumeration<NetworkInterface> nics = NetworkInterface.getNetworkInterfaces();
@@ -157,7 +151,7 @@ public class InetUtils {
                     } else {
                         continue;
                     }
-    
+
                     if (!ignoreInterface(ifc.getDisplayName())) {
                         for (Enumeration<InetAddress> addrs = ifc.getInetAddresses(); addrs.hasMoreElements(); ) {
                             InetAddress address = addrs.nextElement();
@@ -174,20 +168,20 @@ public class InetUtils {
         } catch (IOException ex) {
             LOG.error("Cannot get first non-loopback address", ex);
         }
-        
+
         if (result != null) {
             return result;
         }
-        
+
         try {
             return InetAddress.getLocalHost();
         } catch (UnknownHostException e) {
             LOG.warn("Unable to retrieve localhost");
         }
-        
+
         return null;
     }
-    
+
     private static boolean isPreferredAddress(InetAddress address) {
         if (useOnlySiteLocalInterface) {
             final boolean siteLocalAddress = address.isSiteLocalAddress();
@@ -205,10 +199,10 @@ public class InetUtils {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     private static boolean ignoreInterface(String interfaceName) {
         for (String regex : IGNORED_INTERFACES) {
             if (interfaceName.matches(regex)) {
@@ -218,7 +212,7 @@ public class InetUtils {
         }
         return false;
     }
-    
+
     /**
      * juege str is right domain.
      *
@@ -233,37 +227,37 @@ public class InetUtils {
         }
         return !unResolved;
     }
-    
+
     /**
      * {@link com.alibaba.nacos.core.cluster.ServerMemberManager} is listener.
      */
     @SuppressWarnings({"PMD.ClassNamingShouldBeCamelRule", "checkstyle:AbbreviationAsWordInName"})
     public static class IPChangeEvent extends SlowEvent {
-        
+
         private String oldIP;
-        
+
         private String newIP;
-        
+
         public String getOldIP() {
             return oldIP;
         }
-        
+
         public void setOldIP(String oldIP) {
             this.oldIP = oldIP;
         }
-        
+
         public String getNewIP() {
             return newIP;
         }
-        
+
         public void setNewIP(String newIP) {
             this.newIP = newIP;
         }
-        
+
         @Override
         public String toString() {
             return "IPChangeEvent{" + "oldIP='" + oldIP + '\'' + ", newIP='" + newIP + '\'' + '}';
         }
     }
-    
+
 }

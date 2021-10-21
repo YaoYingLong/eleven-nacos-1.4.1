@@ -288,8 +288,7 @@ public class NamingProxy {
     public static String reqCommon(String path, Map<String, String> params, String curServer, boolean isPost) throws Exception {
         try {
             List<String> headers = Arrays.asList("Client-Version", UtilsAndCommons.SERVER_VERSION, "User-Agent",
-                    UtilsAndCommons.SERVER_VERSION, "Accept-Encoding", "gzip,deflate,sdch", "Connection", "Keep-Alive",
-                    "Content-Encoding", "gzip");
+                    UtilsAndCommons.SERVER_VERSION, "Accept-Encoding", "gzip,deflate,sdch", "Connection", "Keep-Alive", "Content-Encoding", "gzip");
             RestResult<String> result;
             if (!IPUtil.containsPort(curServer)) {
                 curServer = curServer + IPUtil.IP_PORT_SPLITER + EnvUtil.getPort();

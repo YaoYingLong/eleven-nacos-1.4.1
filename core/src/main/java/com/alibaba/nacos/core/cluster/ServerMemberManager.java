@@ -47,14 +47,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PreDestroy;
 import javax.servlet.ServletContext;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
@@ -203,13 +196,12 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             boolean isPublishChangeEvent = MemberUtil.isBasicInfoChanged(newMember, member); // 若有属性变更则为true
             newMember.setExtendVal(MemberMetaDataConstants.LAST_REFRESH_TIME, System.currentTimeMillis());
             MemberUtil.copy(newMember, member); // 将新信息更新到旧Member上
-            if (isPublishChangeEvent) {
+            if (isPublishChangeEvent) { // 若接收到的服务端成员存在信息变更
                 // member basic data changes and all listeners need to be notified
-                notifyMemberChange();
+                notifyMemberChange(); // 通过发布订阅模式通知DistroMapper更新healthyList
             }
             return member;
         });
-
         return true;
     }
 
@@ -269,7 +261,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     }
 
     synchronized boolean memberChange(Collection<Member> members) {
-
         if (members == null || members.isEmpty()) {
             return false;
         }
@@ -422,72 +413,49 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     // A health check of the target node is also attached
 
     class MemberInfoReportTask extends Task {
-
         private final GenericType<RestResult<String>> reference = new GenericType<RestResult<String>>() {
         };
-
         private int cursor = 0;
-
         @Override
         protected void executeBody() {
             List<Member> members = ServerMemberManager.this.allMembersWithoutSelf();
-
             if (members.isEmpty()) {
                 return;
             }
-
             this.cursor = (this.cursor + 1) % members.size();
             Member target = members.get(cursor);
-
             Loggers.CLUSTER.debug("report the metadata to the node : {}", target.getAddress());
-
-            final String url = HttpUtils
-                    .buildUrl(false, target.getAddress(), EnvUtil.getContextPath(), Commons.NACOS_CORE_CONTEXT,
-                            "/cluster/report");
-
+            final String url = HttpUtils.buildUrl(false, target.getAddress(), EnvUtil.getContextPath(), Commons.NACOS_CORE_CONTEXT, "/cluster/report");
             try {
-                asyncRestTemplate
-                        .post(url, Header.newInstance().addParam(Constants.NACOS_SERVER_HEADER, VersionUtils.version),
-                                Query.EMPTY, getSelf(), reference.getType(), new Callback<String>() {
-                                    @Override
-                                    public void onReceive(RestResult<String> result) {
-                                        if (result.getCode() == HttpStatus.NOT_IMPLEMENTED.value()
-                                                || result.getCode() == HttpStatus.NOT_FOUND.value()) {
-                                            Loggers.CLUSTER
-                                                    .warn("{} version is too low, it is recommended to upgrade the version : {}",
-                                                            target, VersionUtils.version);
-                                            return;
-                                        }
-                                        if (result.ok()) {
-                                            MemberUtil.onSuccess(ServerMemberManager.this, target);
-                                        } else {
-                                            Loggers.CLUSTER
-                                                    .warn("failed to report new info to target node : {}, result : {}",
-                                                            target.getAddress(), result);
-                                            MemberUtil.onFail(ServerMemberManager.this, target);
-                                        }
-                                    }
+                asyncRestTemplate.post(url, Header.newInstance().addParam(Constants.NACOS_SERVER_HEADER, VersionUtils.version),
+                    Query.EMPTY, getSelf(), reference.getType(), new Callback<String>() {
+                        @Override
+                        public void onReceive(RestResult<String> result) {
+                            if (result.getCode() == HttpStatus.NOT_IMPLEMENTED.value() || result.getCode() == HttpStatus.NOT_FOUND.value()) {
+                                Loggers.CLUSTER.warn("{} version is too low, it is recommended to upgrade the version : {}", target, VersionUtils.version);
+                                return;
+                            }
+                            if (result.ok()) {
+                                MemberUtil.onSuccess(ServerMemberManager.this, target);
+                            } else {
+                                Loggers.CLUSTER.warn("failed to report new info to target node : {}, result : {}", target.getAddress(), result);
+                                MemberUtil.onFail(ServerMemberManager.this, target);
+                            }
+                        }
+                        @Override
+                        public void onError(Throwable throwable) {
+                            Loggers.CLUSTER.error("failed to report new info to target node : {}, error : {}", target.getAddress(), ExceptionUtil.getAllExceptionMsg(throwable));
+                            MemberUtil.onFail(ServerMemberManager.this, target, throwable);
+                        }
+                        @Override
+                        public void onCancel() {
 
-                                    @Override
-                                    public void onError(Throwable throwable) {
-                                        Loggers.CLUSTER
-                                                .error("failed to report new info to target node : {}, error : {}",
-                                                        target.getAddress(),
-                                                        ExceptionUtil.getAllExceptionMsg(throwable));
-                                        MemberUtil.onFail(ServerMemberManager.this, target, throwable);
-                                    }
-
-                                    @Override
-                                    public void onCancel() {
-
-                                    }
-                                });
+                        }
+                    });
             } catch (Throwable ex) {
-                Loggers.CLUSTER.error("failed to report new info to target node : {}, error : {}", target.getAddress(),
-                        ExceptionUtil.getAllExceptionMsg(ex));
+                Loggers.CLUSTER.error("failed to report new info to target node : {}, error : {}", target.getAddress(), ExceptionUtil.getAllExceptionMsg(ex));
             }
         }
-
         @Override
         protected void after() {
             GlobalExecutor.scheduleByCommon(this, 2_000L);

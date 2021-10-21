@@ -34,7 +34,7 @@ import java.util.Map;
 public class ServiceStatusSynchronizer implements Synchronizer {
 
     @Override
-    public void send(final String serverIP, Message msg) {
+    public void send(final String serverIP, Message msg) { // HTTP调用/v1/ns/service/status接口
         if (serverIP == null) {
             return;
         }
@@ -59,7 +59,6 @@ public class ServiceStatusSynchronizer implements Synchronizer {
                 }
                 @Override
                 public void onCancel() {
-
                 }
             });
         } catch (Exception e) {
@@ -69,35 +68,27 @@ public class ServiceStatusSynchronizer implements Synchronizer {
     }
 
     @Override
-    public Message get(String serverIP, String key) {
+    public Message get(String serverIP, String key) { // HTTP调用/v1/ns/instance/statuses接口
         if (serverIP == null) {
             return null;
         }
-
         Map<String, String> params = new HashMap<>(1);
-
         params.put("key", key);
-
         String result;
         try {
             if (Loggers.SRV_LOG.isDebugEnabled()) {
                 Loggers.SRV_LOG.debug("[STATUS-SYNCHRONIZE] sync service status from: {}, service: {}", serverIP, key);
             }
-            result = NamingProxy
-                    .reqApi(EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/instance/"
-                            + "statuses", params, serverIP);
+            result = NamingProxy.reqApi(EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/instance/statuses", params, serverIP);
         } catch (Exception e) {
             Loggers.SRV_LOG.warn("[STATUS-SYNCHRONIZE] Failed to get service status from " + serverIP, e);
             return null;
         }
-
         if (result == null || result.equals(StringUtils.EMPTY)) {
             return null;
         }
-
         Message msg = new Message();
         msg.setData(result);
-
         return msg;
     }
 }

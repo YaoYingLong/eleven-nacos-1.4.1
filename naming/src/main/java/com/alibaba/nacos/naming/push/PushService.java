@@ -121,16 +121,13 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         Service service = event.getService();
         String serviceName = service.getName();
         String namespaceId = service.getNamespaceId();
-
         Future future = GlobalExecutor.scheduleUdpSender(() -> {
             try {
                 Loggers.PUSH.info(serviceName + " is changed, add it to push queue.");
-                ConcurrentMap<String, PushClient> clients = clientMap
-                        .get(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
+                ConcurrentMap<String, PushClient> clients = clientMap.get(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
                 if (MapUtils.isEmpty(clients)) {
                     return;
                 }
-
                 Map<String, Object> cache = new HashMap<>(16);
                 long lastRefTime = System.nanoTime();
                 for (PushClient client : clients.values()) {
@@ -140,7 +137,6 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         Loggers.PUSH.debug("client is zombie: " + client.toString());
                         continue;
                     }
-
                     Receiver.AckEntry ackEntry;
                     Loggers.PUSH.debug("push serviceName: {} to client: {}", serviceName, client.toString());
                     String key = getPushCacheKey(serviceName, client.getIp(), client.getAgent());
@@ -150,10 +146,8 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         org.javatuples.Pair pair = (org.javatuples.Pair) cache.get(key);
                         compressData = (byte[]) (pair.getValue0());
                         data = (Map<String, Object>) pair.getValue1();
-
                         Loggers.PUSH.debug("[PUSH-CACHE] cache hit: {}:{}", serviceName, client.getAddrStr());
                     }
-
                     if (compressData != null) {
                         ackEntry = prepareAckEntry(client, compressData, data, lastRefTime);
                     } else {
@@ -162,24 +156,16 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                             cache.put(key, new org.javatuples.Pair<>(ackEntry.origin.getData(), ackEntry.data));
                         }
                     }
-
-                    Loggers.PUSH.info("serviceName: {} changed, schedule push for: {}, agent: {}, key: {}",
-                            client.getServiceName(), client.getAddrStr(), client.getAgent(),
-                            (ackEntry == null ? null : ackEntry.key));
-
+                    Loggers.PUSH.info("serviceName: {} changed, schedule push for: {}, agent: {}, key: {}", client.getServiceName(), client.getAddrStr(), client.getAgent(), (ackEntry == null ? null : ackEntry.key));
                     udpPush(ackEntry);
                 }
             } catch (Exception e) {
                 Loggers.PUSH.error("[NACOS-PUSH] failed to push serviceName: {} to client, error: {}", serviceName, e);
-
             } finally {
                 futureMap.remove(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
             }
-
         }, 1000, TimeUnit.MILLISECONDS);
-
         futureMap.put(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName), future);
-
     }
 
     public int getTotalPush() {
@@ -372,11 +358,9 @@ public class PushService implements ApplicationContextAware, ApplicationListener
      */
     public void serviceChanged(Service service) {
         // merge some change events to reduce the push frequency:
-        if (futureMap
-            .containsKey(UtilsAndCommons.assembleFullServiceName(service.getNamespaceId(), service.getName()))) {
+        if (futureMap.containsKey(UtilsAndCommons.assembleFullServiceName(service.getNamespaceId(), service.getName()))) {
             return;
         }
-
         this.applicationContext.publishEvent(new ServiceChangeEvent(this, service));
     }
 

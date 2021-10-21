@@ -110,14 +110,11 @@ public class ServerListManager extends MemberChangeListener {
      * @param configInfo site:ip:lastReportTime:weight
      */
     public synchronized void onReceiveServerStatus(String configInfo) {
-
         Loggers.SRV_LOG.info("receive config info: {}", configInfo);
-
         String[] configs = configInfo.split("\r\n");
         if (configs.length == 0) {
-            return;
+            return; // 若请求信息为空
         }
-
         for (String config : configs) {
             // site:ip:lastReportTime:weight
             String[] params = config.split("#");
@@ -125,16 +122,13 @@ public class ServerListManager extends MemberChangeListener {
                 Loggers.SRV_LOG.warn("received malformed distro map data: {}", config);
                 continue;
             }
-
-            String[] info = IPUtil.splitIPPortStr(params[1]);
-            Member server = Optional.ofNullable(memberManager.find(params[1]))
+            String[] info = IPUtil.splitIPPortStr(params[1]); // 获取发送服务端机器IP列表
+            Member server = Optional.ofNullable(memberManager.find(params[1])) // 若存在则返回老的，若不存在则创建一个新的
                     .orElse(Member.builder().ip(info[0]).state(NodeState.UP)
                             .port(Integer.parseInt(info[1])).build());
-
             server.setExtendVal(MemberMetaDataConstants.SITE_KEY, params[0]);
             server.setExtendVal(MemberMetaDataConstants.WEIGHT, params.length == 4 ? Integer.parseInt(params[3]) : 1);
             memberManager.update(server);
-
             if (!contains(server.getAddress())) {
                 throw new IllegalArgumentException("server: " + server.getAddress() + " is not in serverlist");
             }
@@ -162,7 +156,7 @@ public class ServerListManager extends MemberChangeListener {
             final Map<String, String> params = Maps.newHashMapWithExpectedSize(2);
             final String server = target.getAddress();
             try {
-                String content = NamingProxy.reqCommon(path, params, server, false); // 向目标机器发送HTTP请求
+                String content = NamingProxy.reqCommon(path, params, server, false); // 向目标机器发送HTTP请求/v1/ns/operator/cluster/state
                 if (!StringUtils.EMPTY.equals(content)) {
                     RaftPeer raftPeer = JacksonUtils.toObj(content, RaftPeer.class);
                     if (null != raftPeer) {
@@ -180,7 +174,7 @@ public class ServerListManager extends MemberChangeListener {
 
     private class ServerStatusReporter implements Runnable {
         @Override
-        public void run() {
+        public void run() { // 每2s将当前服务端状态同步给其他服务端/v1/ns/operator/server/status
             try {
                 if (EnvUtil.getPort() <= 0) {
                     return;
@@ -197,15 +191,13 @@ public class ServerListManager extends MemberChangeListener {
                     return; // 若当前机器不在服务端列表中，则不发生同步状态
                 }
                 if (allServers.size() > 0 && !EnvUtil.getLocalAddress().contains(IPUtil.localHostIP())) {
-                    for (Member server : allServers) { // 每2s将当前服务端机器状态同步给其他服务端机器
+                    for (Member server : allServers) {
                         if (Objects.equals(server.getAddress(), EnvUtil.getLocalAddress())) {
                             continue; // 跳过本机地址
                         }
                         // This metadata information exists from 1.3.0 onwards "version"
                         if (server.getExtendVal(MemberMetaDataConstants.VERSION) != null) {
-                            Loggers.SRV_LOG.debug("[SERVER-STATUS] target {} has extend val {} = {}, use new api report status",
-                                            server.getAddress(), MemberMetaDataConstants.VERSION,
-                                            server.getExtendVal(MemberMetaDataConstants.VERSION));
+                            Loggers.SRV_LOG.debug("[SERVER-STATUS] target {} has extend val {} = {}, use new api report status", server.getAddress(), MemberMetaDataConstants.VERSION, server.getExtendVal(MemberMetaDataConstants.VERSION));
                             continue;
                         }
                         Message msg = new Message();
