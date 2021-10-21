@@ -76,7 +76,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     /**
      * Cluster node list.
      */
-    private volatile ConcurrentSkipListMap<String, Member> serverList;
+    private volatile ConcurrentSkipListMap<String, Member> serverList; // 集群成员列表
 
     /**
      * Is this node in the cluster list.
@@ -84,7 +84,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     private volatile boolean isInIpList = true;
 
     /**
-     * port.
+     * port.当前服务端端口
      */
     private int port;
 
@@ -116,7 +116,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     public ServerMemberManager(ServletContext servletContext) throws Exception {
         this.serverList = new ConcurrentSkipListMap<>();
         EnvUtil.setContextPath(servletContext.getContextPath());
-
         init();
     }
 
@@ -264,46 +263,38 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         if (members == null || members.isEmpty()) {
             return false;
         }
-
+        // 是否包含本机地址
         boolean isContainSelfIp = members.stream().anyMatch(ipPortTmp -> Objects.equals(localAddress, ipPortTmp.getAddress()));
 
         if (isContainSelfIp) {
-            isInIpList = true;
+            isInIpList = true;  // 包含本机地址
         } else {
-            isInIpList = false;
-            members.add(this.self);
+            isInIpList = false;  // 不包含本机地址
+            members.add(this.self); // 添加本机到成员列表中
             Loggers.CLUSTER.warn("[serverlist] self ip {} not in serverlist {}", self, members);
         }
-
         // If the number of old and new clusters is different, the cluster information
         // must have changed; if the number of clusters is the same, then compare whether
         // there is a difference; if there is a difference, then the cluster node changes
         // are involved and all recipients need to be notified of the node change event
-
         boolean hasChange = members.size() != serverList.size();
         ConcurrentSkipListMap<String, Member> tmpMap = new ConcurrentSkipListMap<>();
         Set<String> tmpAddressInfo = new ConcurrentHashSet<>();
         for (Member member : members) {
             final String address = member.getAddress();
-
             if (!serverList.containsKey(address)) {
                 hasChange = true;
             }
-
             // Ensure that the node is created only once
             tmpMap.put(address, member);
             if (NodeState.UP.equals(member.getState())) {
                 tmpAddressInfo.add(address);
             }
         }
-
         serverList = tmpMap;
         memberAddressInfos = tmpAddressInfo;
-
         Collection<Member> finalMembers = allMembers();
-
         Loggers.CLUSTER.warn("[serverlist] updated to : {}", finalMembers);
-
         // Persist the current cluster node information to cluster.conf
         // <important> need to put the event publication into a synchronized block to ensure
         // that the event publication is sequential
@@ -312,7 +303,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             Event event = MembersChangeEvent.builder().members(finalMembers).build();
             NotifyCenter.publishEvent(event);
         }
-
         return hasChange;
     }
 
@@ -417,12 +407,12 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         };
         private int cursor = 0;
         @Override
-        protected void executeBody() {
+        protected void executeBody() { // 请求其他成员的HTTP接口/v1/core/cluster/report
             List<Member> members = ServerMemberManager.this.allMembersWithoutSelf();
             if (members.isEmpty()) {
                 return;
             }
-            this.cursor = (this.cursor + 1) % members.size();
+            this.cursor = (this.cursor + 1) % members.size(); // 遍历每个周期向一个成员发送HTTP请求
             Member target = members.get(cursor);
             Loggers.CLUSTER.debug("report the metadata to the node : {}", target.getAddress());
             final String url = HttpUtils.buildUrl(false, target.getAddress(), EnvUtil.getContextPath(), Commons.NACOS_CORE_CONTEXT, "/cluster/report");
@@ -449,7 +439,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                         }
                         @Override
                         public void onCancel() {
-
                         }
                     });
             } catch (Throwable ex) {

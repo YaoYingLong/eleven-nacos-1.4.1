@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
 public class MemberUtil {
-    
+
     protected static final String TARGET_MEMBER_CONNECT_REFUSE_ERRMSG = "Connection refused";
 
     /**
@@ -57,7 +57,7 @@ public class MemberUtil {
         oldMember.setExtendInfo(newMember.getExtendInfo());
         oldMember.setAddress(newMember.getAddress());
     }
-    
+
     /**
      * parse ip:port to member.
      *
@@ -69,7 +69,7 @@ public class MemberUtil {
         // Nacos default port is 8848
         int defaultPort = 8848;
         // Set the default Raft port information for securit
-        
+
         String address = member;
         int port = defaultPort;
         String[] info = IPUtil.splitIPPortStr(address);
@@ -77,20 +77,20 @@ public class MemberUtil {
             address = info[0];
             port = Integer.parseInt(info[1]);
         }
-        
+
         Member target = Member.builder().ip(address).port(port).state(NodeState.UP).build();
-        
+
         Map<String, Object> extendInfo = new HashMap<>(4);
         // The Raft Port information needs to be set by default
         extendInfo.put(MemberMetaDataConstants.RAFT_PORT, String.valueOf(calculateRaftPort(target)));
         target.setExtendInfo(extendInfo);
         return target;
     }
-    
+
     public static int calculateRaftPort(Member member) {
         return member.getPort() - 1000;
     }
-    
+
     /**
      * Resolves to Member list.
      *
@@ -105,7 +105,7 @@ public class MemberUtil {
         }
         return members;
     }
-    
+
     /**
      * Successful processing of the operation on the node.
      *
@@ -117,15 +117,15 @@ public class MemberUtil {
         member.setState(NodeState.UP);
         member.setFailAccessCnt(0);
         if (!Objects.equals(old, member.getState())) {
-            manager.notifyMemberChange();
+            manager.notifyMemberChange(); // 状态若发送变化则发送MembersChangeEvent事件
         }
     }
-    
+
     public static void onFail(final ServerMemberManager manager, final Member member) {
         // To avoid null pointer judgments, pass in one NONE_EXCEPTION
         onFail(manager, member, ExceptionUtil.NONE_EXCEPTION);
     }
-    
+
     /**
      * Failure processing of the operation on the node.
      *
@@ -137,19 +137,19 @@ public class MemberUtil {
         final NodeState old = member.getState();
         member.setState(NodeState.SUSPICIOUS);
         member.setFailAccessCnt(member.getFailAccessCnt() + 1);
+        // 最大访问失败次数，默认为3次
         int maxFailAccessCnt = EnvUtil.getProperty("nacos.core.member.fail-access-cnt", Integer.class, 3);
-        
+
         // If the number of consecutive failures to access the target node reaches
         // a maximum, or the link request is rejected, the state is directly down
-        if (member.getFailAccessCnt() > maxFailAccessCnt || StringUtils
-                .containsIgnoreCase(ex.getMessage(), TARGET_MEMBER_CONNECT_REFUSE_ERRMSG)) {
-            member.setState(NodeState.DOWN);
+        if (member.getFailAccessCnt() > maxFailAccessCnt || StringUtils.containsIgnoreCase(ex.getMessage(), TARGET_MEMBER_CONNECT_REFUSE_ERRMSG)) {
+            member.setState(NodeState.DOWN); // 若访问失败次数大于最大失败访问次数，或Connection refused则将当前成员状态置为DOWN
         }
         if (!Objects.equals(old, member.getState())) {
-            manager.notifyMemberChange();
+            manager.notifyMemberChange(); // 状态若发送变化则发送MembersChangeEvent事件
         }
     }
-    
+
     /**
      * Node list information persistence.
      *
@@ -167,7 +167,7 @@ public class MemberUtil {
             Loggers.CLUSTER.error("cluster member node persistence failed : {}", ExceptionUtil.getAllExceptionMsg(ex));
         }
     }
-    
+
     /**
      * We randomly pick k nodes.
      *
@@ -178,9 +178,9 @@ public class MemberUtil {
      */
     @SuppressWarnings("PMD.UndefineMagicConstantRule")
     public static Collection<Member> kRandom(Collection<Member> members, Predicate<Member> filter, int k) {
-        
+
         Set<Member> kMembers = new HashSet<>();
-        
+
         // Here thinking similar consul gossip protocols random k node
         int totalSize = members.size();
         Member[] membersArray = members.toArray(new Member[totalSize]);
@@ -192,24 +192,24 @@ public class MemberUtil {
                 kMembers.add(member);
             }
         }
-        
+
         return kMembers;
     }
-    
+
     /**
      * Default configuration format resolution, only NACos-Server IP or IP :port or hostname: Port information.
      */
     public static Collection<Member> readServerConf(Collection<String> members) {
         Set<Member> nodes = new HashSet<>();
-        
+
         for (String member : members) {
             Member target = singleParse(member);
             nodes.add(target);
         }
-        
+
         return nodes;
     }
-    
+
     /**
      * Select target members with filter.
      *
@@ -220,7 +220,7 @@ public class MemberUtil {
     public static Set<Member> selectTargetMembers(Collection<Member> members, Predicate<Member> filter) {
         return members.stream().filter(filter).collect(Collectors.toSet());
     }
-    
+
     /**
      * Get address list of members.
      *
@@ -231,7 +231,7 @@ public class MemberUtil {
         return members.stream().map(Member::getAddress).sorted()
                 .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
     }
-    
+
     /**
      * Judge whether basic info has changed.
      *
@@ -257,7 +257,7 @@ public class MemberUtil {
         }
         return isBasicInfoChangedInExtendInfo(expected, actual);
     }
-    
+
     private static boolean isBasicInfoChangedInExtendInfo(Member expected, Member actual) {
         for (String each : MemberMetaDataConstants.BASIC_META_KEYS) {
             if (expected.getExtendInfo().containsKey(each) != actual.getExtendInfo().containsKey(each)) {

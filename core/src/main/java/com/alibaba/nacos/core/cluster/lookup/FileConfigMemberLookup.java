@@ -53,7 +53,7 @@ public class FileConfigMemberLookup extends AbstractMemberLookup {
     @Override
     public void start() throws NacosException {
         if (start.compareAndSet(false, true)) {
-            readClusterConfFromDisk();
+            readClusterConfFromDisk(); // 从磁盘读取集群配置文件
             // Use the inotify mechanism to monitor file changes and automatically
             // trigger the reading of cluster.conf
             try {
