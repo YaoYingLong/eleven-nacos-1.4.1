@@ -121,7 +121,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         Service service = event.getService();
         String serviceName = service.getName();
         String namespaceId = service.getNamespaceId();
-        Future future = GlobalExecutor.scheduleUdpSender(() -> {
+        Future future = GlobalExecutor.scheduleUdpSender(() -> { // 每1s执行一次
             try {
                 Loggers.PUSH.info(serviceName + " is changed, add it to push queue.");
                 ConcurrentMap<String, PushClient> clients = clientMap.get(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
@@ -157,7 +157,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         }
                     }
                     Loggers.PUSH.info("serviceName: {} changed, schedule push for: {}, agent: {}, key: {}", client.getServiceName(), client.getAddrStr(), client.getAgent(), (ackEntry == null ? null : ackEntry.key));
-                    udpPush(ackEntry);
+                    udpPush(ackEntry); // 发送UDP通知客户端
                 }
             } catch (Exception e) {
                 Loggers.PUSH.error("[NACOS-PUSH] failed to push serviceName: {} to client, error: {}", serviceName, e);
@@ -188,11 +188,8 @@ public class PushService implements ApplicationContextAware, ApplicationListener
      * @param tenant      tenant
      * @param app         app
      */
-    public void addClient(String namespaceId, String serviceName, String clusters, String agent,
-            InetSocketAddress socketAddr, DataSource dataSource, String tenant, String app) {
-
-        PushClient client = new PushClient(namespaceId, serviceName, clusters, agent, socketAddr, dataSource, tenant,
-                app);
+    public void addClient(String namespaceId, String serviceName, String clusters, String agent, InetSocketAddress socketAddr, DataSource dataSource, String tenant, String app) {
+        PushClient client = new PushClient(namespaceId, serviceName, clusters, agent, socketAddr, dataSource, tenant, app);
         addClient(client);
     }
 
@@ -371,30 +368,21 @@ public class PushService implements ApplicationContextAware, ApplicationListener
      * @return true if agent can be pushed, otherwise false
      */
     public boolean canEnablePush(String agent) {
-
         if (!switchDomain.isPushEnabled()) {
             return false;
         }
-
         ClientInfo clientInfo = new ClientInfo(agent);
-
-        if (ClientInfo.ClientType.JAVA == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushJavaVersion())) >= 0) {
+        if (ClientInfo.ClientType.JAVA == clientInfo.type && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushJavaVersion())) >= 0) {
             return true;
-        } else if (ClientInfo.ClientType.DNS == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushPythonVersion())) >= 0) {
+        } else if (ClientInfo.ClientType.DNS == clientInfo.type && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushPythonVersion())) >= 0) {
             return true;
-        } else if (ClientInfo.ClientType.C == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushCVersion())) >= 0) {
+        } else if (ClientInfo.ClientType.C == clientInfo.type && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushCVersion())) >= 0) {
             return true;
-        } else if (ClientInfo.ClientType.GO == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushGoVersion())) >= 0) {
+        } else if (ClientInfo.ClientType.GO == clientInfo.type && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushGoVersion())) >= 0) {
             return true;
-        } else if (ClientInfo.ClientType.CSHARP == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushCSharpVersion())) >= 0) {
+        } else if (ClientInfo.ClientType.CSHARP == clientInfo.type && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushCSharpVersion())) >= 0) {
             return true;
         }
-
         return false;
     }
 

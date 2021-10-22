@@ -188,7 +188,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         if (!serverList.containsKey(address)) {
             return false; // 若当前地址不在服务列表中
         }
-        serverList.computeIfPresent(address, (s, member) -> {
+        serverList.computeIfPresent(address, (s, member) -> { // 若address存在则执行下面的逻辑
             if (NodeState.DOWN.equals(newMember.getState())) {
                 memberAddressInfos.remove(newMember.getAddress()); // 若服务已下线，则从memberAddressInfos移除
             }
@@ -423,19 +423,19 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                         public void onReceive(RestResult<String> result) {
                             if (result.getCode() == HttpStatus.NOT_IMPLEMENTED.value() || result.getCode() == HttpStatus.NOT_FOUND.value()) {
                                 Loggers.CLUSTER.warn("{} version is too low, it is recommended to upgrade the version : {}", target, VersionUtils.version);
-                                return;
+                                return; // 返回码为403或404
                             }
-                            if (result.ok()) {
-                                MemberUtil.onSuccess(ServerMemberManager.this, target);
-                            } else {
+                            if (result.ok()) { // 请求成功
+                                MemberUtil.onSuccess(ServerMemberManager.this, target); // 更新成员信息
+                            } else { // 请求失败
                                 Loggers.CLUSTER.warn("failed to report new info to target node : {}, result : {}", target.getAddress(), result);
-                                MemberUtil.onFail(ServerMemberManager.this, target);
+                                MemberUtil.onFail(ServerMemberManager.this, target); // 更新成员信息
                             }
                         }
                         @Override
-                        public void onError(Throwable throwable) {
+                        public void onError(Throwable throwable) { // 请求错误
                             Loggers.CLUSTER.error("failed to report new info to target node : {}, error : {}", target.getAddress(), ExceptionUtil.getAllExceptionMsg(throwable));
-                            MemberUtil.onFail(ServerMemberManager.this, target, throwable);
+                            MemberUtil.onFail(ServerMemberManager.this, target, throwable); // 更新成员信息
                         }
                         @Override
                         public void onCancel() {
@@ -446,7 +446,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             }
         }
         @Override
-        protected void after() {
+        protected void after() { // executeBody执行完成后，递归将任务在放入延时线程池中
             GlobalExecutor.scheduleByCommon(this, 2_000L);
         }
     }

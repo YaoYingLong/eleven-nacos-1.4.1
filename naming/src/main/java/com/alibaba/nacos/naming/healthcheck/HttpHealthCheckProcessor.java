@@ -47,92 +47,79 @@ import static com.alibaba.nacos.naming.misc.Loggers.SRV_LOG;
  */
 @Component
 public class HttpHealthCheckProcessor implements HealthCheckProcessor {
-    
+
     public static final String TYPE = "HTTP";
-    
+
     @Autowired
     private SwitchDomain switchDomain;
-    
+
     @Autowired
     private HealthCheckCommon healthCheckCommon;
-    
+
     private static final NacosAsyncRestTemplate ASYNC_REST_TEMPLATE = HttpClientManager.getProcessorNacosAsyncRestTemplate();
-    
+
     @Override
     public String getType() {
         return TYPE;
     }
-    
+
     @Override
     public void process(HealthCheckTask task) {
         List<Instance> ips = task.getCluster().allIPs(false);
         if (CollectionUtils.isEmpty(ips)) {
             return;
         }
-        
         if (!switchDomain.isHealthCheckEnabled()) {
             return;
         }
-        
         Cluster cluster = task.getCluster();
-        
         for (Instance ip : ips) {
             try {
-                
                 if (ip.isMarked()) {
                     if (SRV_LOG.isDebugEnabled()) {
                         SRV_LOG.debug("http check, ip is marked as to skip health check, ip: {}" + ip.getIp());
                     }
                     continue;
                 }
-                
                 if (!ip.markChecking()) {
-                    SRV_LOG.warn("http check started before last one finished, service: {}:{}:{}",
-                            task.getCluster().getService().getName(), task.getCluster().getName(), ip.getIp());
-                    
-                    healthCheckCommon.reEvaluateCheckRT(task.getCheckRtNormalized() * 2, task,
-                            switchDomain.getHttpHealthParams());
+                    SRV_LOG.warn("http check started before last one finished, service: {}:{}:{}", task.getCluster().getService().getName(), task.getCluster().getName(), ip.getIp());
+                    healthCheckCommon.reEvaluateCheckRT(task.getCheckRtNormalized() * 2, task, switchDomain.getHttpHealthParams());
                     continue;
                 }
-                
                 Http healthChecker = (Http) cluster.getHealthChecker();
-                
                 int ckPort = cluster.isUseIPPort4Check() ? ip.getPort() : cluster.getDefCkport();
                 URL host = new URL("http://" + ip.getIp() + ":" + ckPort);
                 URL target = new URL(host, healthChecker.getPath());
                 Map<String, String> customHeaders = healthChecker.getCustomHeaders();
                 Header header = Header.newInstance();
                 header.addAll(customHeaders);
-    
-                ASYNC_REST_TEMPLATE.get(target.toString(), header, Query.EMPTY, String.class,
-                        new HttpHealthCheckCallback(ip, task));
+                ASYNC_REST_TEMPLATE.get(target.toString(), header, Query.EMPTY, String.class, new HttpHealthCheckCallback(ip, task));
                 MetricsMonitor.getHttpHealthCheckMonitor().incrementAndGet();
             } catch (Throwable e) {
                 ip.setCheckRt(switchDomain.getHttpHealthParams().getMax());
                 healthCheckCommon.checkFail(ip, task, "http:error:" + e.getMessage());
-                healthCheckCommon.reEvaluateCheckRT(switchDomain.getHttpHealthParams().getMax(), task,
-                        switchDomain.getHttpHealthParams());
+                healthCheckCommon.reEvaluateCheckRT(switchDomain.getHttpHealthParams().getMax(), task, switchDomain.getHttpHealthParams());
             }
         }
     }
-    
+
     private class HttpHealthCheckCallback implements Callback<String> {
-        
+
         private Instance ip;
-        
+
         private HealthCheckTask task;
-        
+
         private long startTime = System.currentTimeMillis();
-        
+
         public HttpHealthCheckCallback(Instance ip, HealthCheckTask task) {
             this.ip = ip;
             this.task = task;
         }
-        
+
         @Override
         public void onReceive(RestResult<String> result) {
             ip.setCheckRt(System.currentTimeMillis() - startTime);
-            
+
             int httpCode = result.getCode();
             if (HttpURLConnection.HTTP_OK == httpCode) {
                 healthCheckCommon.checkOK(ip, task, "http:" + httpCode);
@@ -150,28 +137,28 @@ public class HttpHealthCheckProcessor implements HealthCheckProcessor {
                 healthCheckCommon.reEvaluateCheckRT(switchDomain.getHttpHealthParams().getMax(), task,
                         switchDomain.getHttpHealthParams());
             }
-            
+
         }
-        
+
         @Override
         public void onError(Throwable t) {
             ip.setCheckRt(System.currentTimeMillis() - startTime);
-            
+
             Throwable cause = t;
             int maxStackDepth = 50;
             for (int deepth = 0; deepth < maxStackDepth && cause != null; deepth++) {
                 if (HttpUtils.isTimeoutException(t)) {
-                    
+
                     healthCheckCommon.checkFail(ip, task, "http:timeout:" + cause.getMessage());
                     healthCheckCommon.reEvaluateCheckRT(task.getCheckRtNormalized() * 2, task,
                             switchDomain.getHttpHealthParams());
-                    
+
                     return;
                 }
-                
+
                 cause = cause.getCause();
             }
-            
+
             // connection error, probably not reachable
             if (t instanceof ConnectException) {
                 healthCheckCommon.checkFailNow(ip, task, "http:unable2connect:" + t.getMessage());
@@ -183,10 +170,10 @@ public class HttpHealthCheckProcessor implements HealthCheckProcessor {
                         switchDomain.getHttpHealthParams());
             }
         }
-        
+
         @Override
         public void onCancel() {
-        
+
         }
     }
 }

@@ -175,11 +175,9 @@ public class DefaultPublisher extends Thread implements EventPublisher {
         for (Subscriber subscriber : subscribers) {
             // Whether to ignore expiration events
             if (subscriber.ignoreExpireEvent() && lastEventSequence > currentEventSequence) {
-                LOGGER.debug("[NotifyCenter] the {} is unacceptable to this subscriber, because had expire",
-                        event.getClass());
+                LOGGER.debug("[NotifyCenter] the {} is unacceptable to this subscriber, because had expire", event.getClass());
                 continue;
             }
-
             // Because unifying smartSubscriber and subscriber, so here need to think of compatibility.
             // Remove original judge part of codes.
             notifySubscriber(subscriber, event);

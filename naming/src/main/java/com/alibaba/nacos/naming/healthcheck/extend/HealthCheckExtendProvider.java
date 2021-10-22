@@ -40,68 +40,65 @@ import java.util.Set;
  */
 @Component
 public class HealthCheckExtendProvider implements BeanFactoryAware {
-    
+
     private static final Logger LOGGER = LoggerFactory.getLogger(HealthCheckExtendProvider.class);
-    
+
     private ServiceLoader<HealthCheckProcessor> processorLoader = ServiceLoader.load(HealthCheckProcessor.class);
-    
+
     private ServiceLoader<AbstractHealthChecker> checkerLoader = ServiceLoader.load(AbstractHealthChecker.class);
-    
+
     private SingletonBeanRegistry registry;
-    
+
     public void init() {
         loadExtend();
     }
-    
+
     private void loadExtend() {
         Iterator<HealthCheckProcessor> processorIt = processorLoader.iterator();
         Iterator<AbstractHealthChecker> healthCheckerIt = checkerLoader.iterator();
-        
+
         Set<String> origin = new HashSet<>();
         for (HealthCheckType type : HealthCheckType.values()) {
             origin.add(type.name());
         }
         Set<String> processorType = new HashSet<>(origin);
         Set<String> healthCheckerType = new HashSet<>(origin);
-        
+
         while (processorIt.hasNext()) {
             HealthCheckProcessor processor = processorIt.next();
             String type = processor.getType();
             if (processorType.contains(type)) {
-                throw new RuntimeException(
-                        "More than one processor of the same type was found : [type=\"" + type + "\"]");
+                throw new RuntimeException("More than one processor of the same type was found : [type=\"" + type + "\"]");
             }
             processorType.add(type);
             registry.registerSingleton(lowerFirstChar(processor.getClass().getSimpleName()), processor);
         }
-        
+
         while (healthCheckerIt.hasNext()) {
             AbstractHealthChecker checker = healthCheckerIt.next();
             String type = checker.getType();
             if (healthCheckerType.contains(type)) {
-                throw new RuntimeException(
-                        "More than one healthChecker of the same type was found : [type=\"" + type + "\"]");
+                throw new RuntimeException("More than one healthChecker of the same type was found : [type=\"" + type + "\"]");
             }
             healthCheckerType.add(type);
             HealthCheckType.registerHealthChecker(checker.getType(), checker.getClass());
         }
         if (!processorType.equals(healthCheckerType)) {
-            throw new RuntimeException(
-                    "An unmatched processor and healthChecker are detected in the extension package.");
+            throw new RuntimeException("An unmatched processor and healthChecker are detected in the extension package.");
         }
         if (processorType.size() > origin.size()) {
             processorType.removeAll(origin);
             LOGGER.debug("init health plugin : types=" + processorType);
         }
     }
-    
+
     private String lowerFirstChar(String simpleName) {
         if (StringUtils.isBlank(simpleName)) {
             throw new IllegalArgumentException("can't find extend processor class name");
         }
         return String.valueOf(simpleName.charAt(0)).toLowerCase() + simpleName.substring(1);
     }
-    
+
     @Override
     public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
         if (beanFactory instanceof SingletonBeanRegistry) {

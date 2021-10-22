@@ -40,7 +40,7 @@ public class ServiceStatusSynchronizer implements Synchronizer {
         }
         Map<String, String> params = new HashMap<String, String>(10);
         params.put("statuses", msg.getData());
-        params.put("clientIP", NetUtils.localServer());
+        params.put("clientIP", NetUtils.localServer()); // 当前服务端成员IP地址
         String url = "http://" + serverIP + ":" + EnvUtil.getPort() + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/service/status";
         if (IPUtil.containsPort(serverIP)) {
             url = "http://" + serverIP + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/service/status";

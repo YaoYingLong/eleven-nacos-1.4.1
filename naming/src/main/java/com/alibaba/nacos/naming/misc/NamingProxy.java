@@ -157,7 +157,7 @@ public class NamingProxy {
      * @param curServer target server address
      * @return true if sync successfully, otherwise false
      */
-    public static boolean syncData(byte[] data, String curServer) {
+    public static boolean syncData(byte[] data, String curServer) { // 调用/v1/ns/distro/datum接口即DistroController#onSyncDatum
         Map<String, String> headers = new HashMap<>(128);
 
         headers.put(HttpHeaderConsts.CLIENT_VERSION_HEADER, VersionUtils.version);
@@ -165,20 +165,15 @@ public class NamingProxy {
         headers.put(HttpHeaderConsts.ACCEPT_ENCODING, "gzip,deflate,sdch");
         headers.put(HttpHeaderConsts.CONNECTION, "Keep-Alive");
         headers.put(HttpHeaderConsts.CONTENT_ENCODING, "gzip");
-
         try {
-            RestResult<String> result = HttpClient.httpPutLarge(
-                    "http://" + curServer + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT
-                            + DATA_ON_SYNC_URL, headers, data);
+            RestResult<String> result = HttpClient.httpPutLarge("http://" + curServer + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + DATA_ON_SYNC_URL, headers, data);
             if (result.ok()) {
                 return true;
             }
             if (HttpURLConnection.HTTP_NOT_MODIFIED == result.getCode()) {
                 return true;
             }
-            throw new IOException("failed to req API:" + "http://" + curServer + EnvUtil.getContextPath()
-                    + UtilsAndCommons.NACOS_NAMING_CONTEXT + DATA_ON_SYNC_URL + ". code:" + result.getCode() + " msg: "
-                    + result.getData());
+            throw new IOException("failed to req API:" + "http://" + curServer + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + DATA_ON_SYNC_URL + ". code:" + result.getCode() + " msg: " + result.getData());
         } catch (Exception e) {
             Loggers.SRV_LOG.warn("NamingProxy", e);
         }

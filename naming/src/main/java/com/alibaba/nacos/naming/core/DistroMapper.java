@@ -80,7 +80,7 @@ public class DistroMapper extends MemberChangeListener {
      * @param serviceName service name
      * @return true if input service is response, otherwise false
      */
-    public boolean responsible(String serviceName) { // 当前客户端服务是否注册在当前的服务端上
+    public boolean responsible(String serviceName) { // 当前客户端服务是否注册在当前的服务端上，不在返回true
         final List<String> servers = healthyList; // 健康的服务端成员列表
         if (!switchDomain.isDistroEnabled() || EnvUtil.getStandaloneMode()) {
             return true; // 若是standalone启动模式

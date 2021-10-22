@@ -176,28 +176,20 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
 
     @Override
     public void onChange(String key, Instances value) throws Exception {
-
         Loggers.SRV_LOG.info("[NACOS-RAFT] datum is changed, key: {}, value: {}", key, value);
-
-        for (Instance instance : value.getInstanceList()) {
-
-            if (instance == null) {
-                // Reject this abnormal instance list:
+        for (Instance instance : value.getInstanceList()) { // 遍历实例列表
+            if (instance == null) { // 若实例为null抛出异常
                 throw new RuntimeException("got null instance " + key);
             }
-
             if (instance.getWeight() > 10000.0D) {
-                instance.setWeight(10000.0D);
+                instance.setWeight(10000.0D); // 权重最大值为10000
             }
-
             if (instance.getWeight() < 0.01D && instance.getWeight() > 0.0D) {
-                instance.setWeight(0.01D);
+                instance.setWeight(0.01D); // 权重最小值为0.01
             }
         }
-
-        updateIPs(value.getInstanceList(), KeyBuilder.matchEphemeralInstanceListKey(key));
-
-        recalculateChecksum();
+        updateIPs(value.getInstanceList(), KeyBuilder.matchEphemeralInstanceListKey(key)); // 更新注册表中实例列表
+        recalculateChecksum(); // 根据最新实例列表重新计算checksum
     }
 
     @Override
@@ -233,59 +225,45 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
      */
     public void updateIPs(Collection<Instance> instances, boolean ephemeral) {
         Map<String, List<Instance>> ipMap = new HashMap<>(clusterMap.size());
-        for (String clusterName : clusterMap.keySet()) {
+        for (String clusterName : clusterMap.keySet()) { // 构造一个空的Map来存放最新的实例列表
             ipMap.put(clusterName, new ArrayList<>());
         }
-
-        for (Instance instance : instances) {
+        for (Instance instance : instances) { // 遍历最新的实例列表
             try {
-                if (instance == null) {
+                if (instance == null) { // 跳过为null的实例
                     Loggers.SRV_LOG.error("[NACOS-DOM] received malformed ip: null");
                     continue;
                 }
-
-                if (StringUtils.isEmpty(instance.getClusterName())) {
+                if (StringUtils.isEmpty(instance.getClusterName())) { // 若实例集群名称为null则设置为DEFAULT集群
                     instance.setClusterName(UtilsAndCommons.DEFAULT_CLUSTER_NAME);
                 }
-
                 if (!clusterMap.containsKey(instance.getClusterName())) {
-                    Loggers.SRV_LOG
-                            .warn("cluster: {} not found, ip: {}, will create new cluster with default configuration.",
-                                    instance.getClusterName(), instance.toJson());
+                    Loggers.SRV_LOG.warn("cluster: {} not found, ip: {}, will create new cluster with default configuration.", instance.getClusterName(), instance.toJson());
                     Cluster cluster = new Cluster(instance.getClusterName(), this);
-                    cluster.init();
+                    cluster.init(); // 若当前实例集群在注册表中不存在，则创建一个服务集群并初始化
                     getClusterMap().put(instance.getClusterName(), cluster);
                 }
-
                 List<Instance> clusterIPs = ipMap.get(instance.getClusterName());
                 if (clusterIPs == null) {
                     clusterIPs = new LinkedList<>();
                     ipMap.put(instance.getClusterName(), clusterIPs);
                 }
-
-                clusterIPs.add(instance);
+                clusterIPs.add(instance); // 将实例分集群放入ipMap中
             } catch (Exception e) {
                 Loggers.SRV_LOG.error("[NACOS-DOM] failed to process ip: " + instance, e);
             }
         }
-
         for (Map.Entry<String, List<Instance>> entry : ipMap.entrySet()) {
-            //make every ip mine
-            List<Instance> entryIPs = entry.getValue();
-            clusterMap.get(entry.getKey()).updateIps(entryIPs, ephemeral);
+            List<Instance> entryIPs = entry.getValue(); //make every ip mine
+            clusterMap.get(entry.getKey()).updateIps(entryIPs, ephemeral); // 真正更新注册表中实例列表
         }
-
-        setLastModifiedMillis(System.currentTimeMillis());
-        getPushService().serviceChanged(this);
-        StringBuilder stringBuilder = new StringBuilder();
-
+        setLastModifiedMillis(System.currentTimeMillis()); // 设置服务最后更新时间为当前时间
+        getPushService().serviceChanged(this); // 发布服务变更事件
+        StringBuilder stringBuilder = new StringBuilder(); // 用于打印日志
         for (Instance instance : allIPs()) {
             stringBuilder.append(instance.toIpAddr()).append("_").append(instance.isHealthy()).append(",");
         }
-
-        Loggers.EVT_LOG.info("[IP-UPDATED] namespace: {}, service: {}, ips: {}", getNamespaceId(), getName(),
-                stringBuilder.toString());
-
+        Loggers.EVT_LOG.info("[IP-UPDATED] namespace: {}, service: {}, ips: {}", getNamespaceId(), getName(), stringBuilder.toString());
     }
 
     /**

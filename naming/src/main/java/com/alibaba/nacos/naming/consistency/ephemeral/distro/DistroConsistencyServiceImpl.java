@@ -104,9 +104,9 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @Override
     public void put(String key, Record value) throws NacosException {
-        onPut(key, value);
-        distroProtocol.sync(new DistroKey(key, KeyBuilder.INSTANCE_LIST_KEY_PREFIX), DataOperation.CHANGE,
-                globalConfig.getTaskDispatchPeriod() / 2);
+        onPut(key, value); // 若是ephemeral实例将其添加到DataStore缓存中，然后通过一部任务替换注册表中实例列表
+        // 同步实例数据到其它服务端成员列表中，是将当前服务名称下所有实例同步到其他服务端，最终是通过异步任务加队列的方式，调用HTTP接口最终在其他服务上也是通过onPut方法来完成
+        distroProtocol.sync(new DistroKey(key, KeyBuilder.INSTANCE_LIST_KEY_PREFIX), DataOperation.CHANGE, globalConfig.getTaskDispatchPeriod() / 2);
     }
 
     @Override
@@ -127,12 +127,12 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
      * @param value record
      */
     public void onPut(String key, Record value) {
-        if (KeyBuilder.matchEphemeralInstanceListKey(key)) {
+        if (KeyBuilder.matchEphemeralInstanceListKey(key)) { // 若是ephemeral实例记录
             Datum<Instances> datum = new Datum<>();
             datum.value = (Instances) value;
             datum.key = key;
             datum.timestamp.incrementAndGet();
-            dataStore.put(key, datum);
+            dataStore.put(key, datum); // 更新缓存数据
         }
         if (!listeners.containsKey(key)) {
             return;
@@ -321,11 +321,9 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         if (!listeners.containsKey(key)) {
             listeners.put(key, new ConcurrentLinkedQueue<>());
         }
-
         if (listeners.get(key).contains(listener)) {
             return;
         }
-
         listeners.get(key).add(listener);
     }
 
@@ -363,12 +361,12 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
          */
         public void addTask(String datumKey, DataOperation action) {
             if (services.containsKey(datumKey) && action == DataOperation.CHANGE) {
-                return;
+                return; // 若当前Task已存在则直接忽略
             }
             if (action == DataOperation.CHANGE) {
-                services.put(datumKey, StringUtils.EMPTY);
+                services.put(datumKey, StringUtils.EMPTY); // 将当前任务添加到services列表中
             }
-            tasks.offer(Pair.with(datumKey, action));
+            tasks.offer(Pair.with(datumKey, action)); // 将当前任务放入阻塞队列
         }
 
         public int getTaskSize() {
@@ -392,20 +390,21 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             try {
                 String datumKey = pair.getValue0();
                 DataOperation action = pair.getValue1();
-                services.remove(datumKey);
+                services.remove(datumKey); // 从任务列表移除
                 int count = 0;
                 if (!listeners.containsKey(datumKey)) {
                     return;
                 }
-                for (RecordListener listener : listeners.get(datumKey)) {
+                // 这里的获取到的RecordListener是在创建实例对象时在putServiceAndInit中通过ConsistencyService#listen方法添加的
+                for (RecordListener listener : listeners.get(datumKey)) { // listener就是一个Service对象
                     count++;
                     try {
-                        if (action == DataOperation.CHANGE) {
+                        if (action == DataOperation.CHANGE) { // 将最新的实例列表数据通过Service的onChange方法进行更新
                             listener.onChange(datumKey, dataStore.get(datumKey).value);
                             continue;
                         }
-                        if (action == DataOperation.DELETE) {
-                            listener.onDelete(datumKey);
+                        if (action == DataOperation.DELETE) { // 通过Service的onDelete方法进行删除
+                            listener.onDelete(datumKey); // 目前是空实现
                             continue;
                         }
                     } catch (Throwable e) {

@@ -43,40 +43,40 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author jifengnan 2019-04-26
  */
 public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implements Cloneable {
-    
+
     private static final String CLUSTER_NAME_SYNTAX = "[0-9a-zA-Z-]+";
-    
+
     private static final long serialVersionUID = 8940123791150907510L;
-    
+
     /**
      * a addition for same site routing, can group multiple sites into a region, like Hangzhou, Shanghai, etc.
      */
     private String sitegroup = StringUtils.EMPTY;
-    
+
     private int defCkport = 80;
-    
+
     private int defIpPort = -1;
-    
+
     @JsonIgnore
     private HealthCheckTask checkTask;
-    
+
     @JsonIgnore
     private Set<Instance> persistentInstances = new HashSet<>();
-    
+
     @JsonIgnore
     private Set<Instance> ephemeralInstances = new HashSet<>();
-    
+
     @JsonIgnore
     private Service service;
-    
+
     @JsonIgnore
     private volatile boolean inited = false;
-    
+
     private Map<String, String> metadata = new ConcurrentHashMap<>();
-    
+
     public Cluster() {
     }
-    
+
     /**
      * Create a cluster.
      *
@@ -94,7 +94,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         this.service = service;
         validate();
     }
-    
+
     /**
      * Reason why method is not camel is that the old version has released, and the method name will be as the key
      * serialize and deserialize for Json. So ignore checkstyle.
@@ -106,7 +106,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         // for compatibility with old entries
         return defIpPort == -1 ? defCkport : defIpPort;
     }
-    
+
     @SuppressWarnings("checkstyle:abbreviationaswordinname")
     public void setDefIPPort(int defIpPort) {
         if (defIpPort == 0) {
@@ -114,7 +114,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         }
         this.defIpPort = defIpPort;
     }
-    
+
     /**
      * Get all instances.
      *
@@ -126,7 +126,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         allInstances.addAll(ephemeralInstances);
         return allInstances;
     }
-    
+
     /**
      * Get all ephemeral or consistence instances.
      *
@@ -136,7 +136,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
     public List<Instance> allIPs(boolean ephemeral) {
         return ephemeral ? new ArrayList<>(ephemeralInstances) : new ArrayList<>(persistentInstances);
     }
-    
+
     /**
      * Init cluster.
      */
@@ -144,12 +144,11 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         if (inited) {
             return;
         }
-        checkTask = new HealthCheckTask(this);
-        
+        checkTask = new HealthCheckTask(this); // 创建心跳监控检查任务
         HealthCheckReactor.scheduleCheck(checkTask);
         inited = true;
     }
-    
+
     /**
      * Destroy cluster.
      */
@@ -158,16 +157,16 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
             checkTask.setCancelled(true);
         }
     }
-    
+
     @JsonIgnore
     public HealthCheckTask getHealthCheckTask() {
         return checkTask;
     }
-    
+
     public Service getService() {
         return service;
     }
-    
+
     /**
      * Replace the service for the current cluster.
      *
@@ -183,7 +182,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         }
         this.service = service;
     }
-    
+
     /**
      * this method has been deprecated, the service name shouldn't be changed.
      *
@@ -196,7 +195,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
     public void setServiceName(String serviceName) {
         super.setServiceName(serviceName);
     }
-    
+
     /**
      * Get the service name of the current cluster.
      *
@@ -213,7 +212,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
             return super.getServiceName();
         }
     }
-    
+
     @Override
     public Cluster clone() throws CloneNotSupportedException {
         super.clone();
@@ -224,11 +223,11 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         cluster.metadata = new HashMap<>(metadata);
         return cluster;
     }
-    
+
     public boolean isEmpty() {
         return ephemeralInstances.isEmpty() && persistentInstances.isEmpty();
     }
-    
+
     /**
      * Update instance list.
      *
@@ -236,213 +235,181 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
      * @param ephemeral whether these instances are ephemeral
      */
     public void updateIps(List<Instance> ips, boolean ephemeral) {
-        
         Set<Instance> toUpdateInstances = ephemeral ? ephemeralInstances : persistentInstances;
-        
         HashMap<String, Instance> oldIpMap = new HashMap<>(toUpdateInstances.size());
-        
-        for (Instance ip : toUpdateInstances) {
+        for (Instance ip : toUpdateInstances) { // 注册表中旧实例列表
             oldIpMap.put(ip.getDatumKey(), ip);
         }
-        
+        // updatedIPs为即在旧实例列表中也在新实例列表中的实例替换为新实例后的数据
         List<Instance> updatedIPs = updatedIps(ips, oldIpMap.values());
-        if (updatedIPs.size() > 0) {
+        if (updatedIPs.size() > 0) { // 主要逻辑是打印日志和简健康状态替换为旧的健康状态
             for (Instance ip : updatedIPs) {
-                Instance oldIP = oldIpMap.get(ip.getDatumKey());
-                
+                Instance oldIP = oldIpMap.get(ip.getDatumKey()); // 获取到旧的实例数据
                 // do not update the ip validation status of updated ips
                 // because the checker has the most precise result
                 // Only when ip is not marked, don't we update the health status of IP:
-                if (!ip.isMarked()) {
-                    ip.setHealthy(oldIP.isHealthy());
+                if (!ip.isMarked()) { // marked默认为false
+                    ip.setHealthy(oldIP.isHealthy()); // 将新实例对象的健康状态设置为旧实例的健康状态
                 }
-                
-                if (ip.isHealthy() != oldIP.isHealthy()) {
-                    // ip validation status updated
-                    Loggers.EVT_LOG.info("{} {SYNC} IP-{} {}:{}@{}", getService().getName(),
-                            (ip.isHealthy() ? "ENABLED" : "DISABLED"), ip.getIp(), ip.getPort(), getName());
+                if (ip.isHealthy() != oldIP.isHealthy()) { // ip validation status updated
+                    Loggers.EVT_LOG.info("{} {SYNC} IP-{} {}:{}@{}", getService().getName(), (ip.isHealthy() ? "ENABLED" : "DISABLED"), ip.getIp(), ip.getPort(), getName());
                 }
-                
-                if (ip.getWeight() != oldIP.getWeight()) {
-                    // ip validation status updated
-                    Loggers.EVT_LOG.info("{} {SYNC} {IP-UPDATED} {}->{}", getService().getName(), oldIP.toString(),
-                            ip.toString());
+                if (ip.getWeight() != oldIP.getWeight()) { // ip validation status updated
+                    Loggers.EVT_LOG.info("{} {SYNC} {IP-UPDATED} {}->{}", getService().getName(), oldIP.toString(), ip.toString());
                 }
             }
         }
-        
-        List<Instance> newIPs = subtract(ips, oldIpMap.values());
+        List<Instance> newIPs = subtract(ips, oldIpMap.values()); // 返回新增的实例列表
         if (newIPs.size() > 0) {
-            Loggers.EVT_LOG
-                    .info("{} {SYNC} {IP-NEW} cluster: {}, new ips size: {}, content: {}", getService().getName(),
-                            getName(), newIPs.size(), newIPs.toString());
-            
+            Loggers.EVT_LOG.info("{} {SYNC} {IP-NEW} cluster: {}, new ips size: {}, content: {}", getService().getName(), getName(), newIPs.size(), newIPs.toString());
             for (Instance ip : newIPs) {
                 HealthCheckStatus.reset(ip);
             }
         }
-        
-        List<Instance> deadIPs = subtract(oldIpMap.values(), ips);
-        
+        List<Instance> deadIPs = subtract(oldIpMap.values(), ips);  // 返回需删除的实例列表
         if (deadIPs.size() > 0) {
-            Loggers.EVT_LOG
-                    .info("{} {SYNC} {IP-DEAD} cluster: {}, dead ips size: {}, content: {}", getService().getName(),
-                            getName(), deadIPs.size(), deadIPs.toString());
-            
+            Loggers.EVT_LOG.info("{} {SYNC} {IP-DEAD} cluster: {}, dead ips size: {}, content: {}", getService().getName(), getName(), deadIPs.size(), deadIPs.toString());
             for (Instance ip : deadIPs) {
                 HealthCheckStatus.remv(ip);
             }
         }
-        
-        toUpdateInstances = new HashSet<>(ips);
-        
+        toUpdateInstances = new HashSet<>(ips); // 通过CopyOnWrite将新的实例列表覆盖注册表中的实例列表
         if (ephemeral) {
             ephemeralInstances = toUpdateInstances;
         } else {
             persistentInstances = toUpdateInstances;
         }
     }
-    
+
     private List<Instance> updatedIps(Collection<Instance> newInstance, Collection<Instance> oldInstance) {
-        
+        // 旧实例列表与新实例列表的交集，即未发送变化的实例列表
         List<Instance> intersects = (List<Instance>) CollectionUtils.intersection(newInstance, oldInstance);
         Map<String, Instance> stringIpAddressMap = new ConcurrentHashMap<>(intersects.size());
-        
-        for (Instance instance : intersects) {
+        for (Instance instance : intersects) { // 将未变化的实例列表放入stringIpAddressMap中
             stringIpAddressMap.put(instance.getIp() + ":" + instance.getPort(), instance);
         }
-        
+        // 新实例和就实例总和
         Map<String, Integer> intersectMap = new ConcurrentHashMap<>(newInstance.size() + oldInstance.size());
         Map<String, Instance> updatedInstancesMap = new ConcurrentHashMap<>(newInstance.size());
         Map<String, Instance> newInstancesMap = new ConcurrentHashMap<>(newInstance.size());
-        
         for (Instance instance : oldInstance) {
             if (stringIpAddressMap.containsKey(instance.getIp() + ":" + instance.getPort())) {
-                intersectMap.put(instance.toString(), 1);
+                intersectMap.put(instance.toString(), 1); // 将旧实例放入intersectMap中，且值设置为1
             }
         }
-        
         for (Instance instance : newInstance) {
             if (stringIpAddressMap.containsKey(instance.getIp() + ":" + instance.getPort())) {
-                
                 if (intersectMap.containsKey(instance.toString())) {
-                    intersectMap.put(instance.toString(), 2);
+                    intersectMap.put(instance.toString(), 2); // 将新实例放入intersectMap中，且值设置为2
                 } else {
-                    intersectMap.put(instance.toString(), 1);
+                    intersectMap.put(instance.toString(), 1); // 将即在旧实例列表中也在新实例列表中放入intersectMap中，且值设置为1
                 }
             }
-            
-            newInstancesMap.put(instance.toString(), instance);
-            
+            newInstancesMap.put(instance.toString(), instance); // 新实例方法newInstancesMap
         }
-        
         for (Map.Entry<String, Integer> entry : intersectMap.entrySet()) {
             String key = entry.getKey();
             Integer value = entry.getValue();
-            
-            if (value == 1) {
-                if (newInstancesMap.containsKey(key)) {
-                    updatedInstancesMap.put(key, newInstancesMap.get(key));
+            if (value == 1) { // 若是旧实例
+                if (newInstancesMap.containsKey(key)) { // 即在旧实例列表中也在新实例列表中
+                    updatedInstancesMap.put(key, newInstancesMap.get(key)); // 将即在旧实例列表中也在新实例列表中的实例替换为新实例
                 }
             }
         }
-        
-        return new ArrayList<>(updatedInstancesMap.values());
+        return new ArrayList<>(updatedInstancesMap.values()); // 返回即在旧实例列表中也在新实例列表中
     }
-    
+
     private List<Instance> subtract(Collection<Instance> oldIp, Collection<Instance> ips) {
         Map<String, Instance> ipsMap = new HashMap<>(ips.size());
         for (Instance instance : ips) {
             ipsMap.put(instance.getIp() + ":" + instance.getPort(), instance);
         }
-        
         List<Instance> instanceResult = new ArrayList<>();
-        
         for (Instance instance : oldIp) {
             if (!ipsMap.containsKey(instance.getIp() + ":" + instance.getPort())) {
-                instanceResult.add(instance);
+                instanceResult.add(instance); // 将新的实例列表中不包含的实例添加到instanceResult
             }
         }
-        return instanceResult;
+        return instanceResult; // 获取需要删除的实例列表，即新的实例列表中不包含旧的实例列表中存在的实例
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(getName());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof Cluster)) {
             return false;
         }
-        
+
         return getName().equals(((Cluster) obj).getName());
     }
-    
+
     public int getDefCkport() {
         return defCkport;
     }
-    
+
     public void setDefCkport(int defCkport) {
         this.defCkport = defCkport;
     }
-    
+
     /**
      * Update cluster from other cluster.
      *
      * @param cluster new cluster
      */
     public void update(Cluster cluster) {
-        
+
         if (!getHealthChecker().equals(cluster.getHealthChecker())) {
             Loggers.SRV_LOG.info("[CLUSTER-UPDATE] {}:{}:, healthChecker: {} -> {}", getService().getName(), getName(),
                     getHealthChecker().toString(), cluster.getHealthChecker().toString());
             setHealthChecker(cluster.getHealthChecker());
         }
-        
+
         if (defCkport != cluster.getDefCkport()) {
             Loggers.SRV_LOG
                     .info("[CLUSTER-UPDATE] {}:{}, defCkport: {} -> {}", getService().getName(), getName(), defCkport,
                             cluster.getDefCkport());
             defCkport = cluster.getDefCkport();
         }
-        
+
         if (defIpPort != cluster.getDefIPPort()) {
             Loggers.SRV_LOG
                     .info("[CLUSTER-UPDATE] {}:{}, defIPPort: {} -> {}", getService().getName(), getName(), defIpPort,
                             cluster.getDefIPPort());
             defIpPort = cluster.getDefIPPort();
         }
-        
+
         if (!StringUtils.equals(sitegroup, cluster.getSitegroup())) {
             Loggers.SRV_LOG
                     .info("[CLUSTER-UPDATE] {}:{}, sitegroup: {} -> {}", getService().getName(), getName(), sitegroup,
                             cluster.getSitegroup());
             sitegroup = cluster.getSitegroup();
         }
-        
+
         if (isUseIPPort4Check() != cluster.isUseIPPort4Check()) {
             Loggers.SRV_LOG.info("[CLUSTER-UPDATE] {}:{}, useIPPort4Check: {} -> {}", getService().getName(), getName(),
                     isUseIPPort4Check(), cluster.isUseIPPort4Check());
             setUseIPPort4Check(cluster.isUseIPPort4Check());
         }
-        
+
         metadata = cluster.getMetadata();
     }
-    
+
     public String getSitegroup() {
         return sitegroup;
     }
-    
+
     public void setSitegroup(String sitegroup) {
         this.sitegroup = sitegroup;
     }
-    
+
     public boolean contains(Instance ip) {
         return persistentInstances.contains(ip) || ephemeralInstances.contains(ip);
     }
-    
+
     /**
      * validate the current cluster.
      *

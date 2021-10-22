@@ -35,27 +35,27 @@ import java.util.List;
  * @author xiweng.yy
  */
 public class DistroHttpAgent implements DistroTransportAgent {
-    
+
     private final ServerMemberManager memberManager;
-    
+
     public DistroHttpAgent(ServerMemberManager memberManager) {
         this.memberManager = memberManager;
     }
-    
+
     @Override
     public boolean syncData(DistroData data, String targetServer) {
         if (!memberManager.hasMember(targetServer)) {
-            return true;
+            return true; // 若不存在该成员，则直接跳过
         }
         byte[] dataContent = data.getContent();
         return NamingProxy.syncData(dataContent, data.getDistroKey().getTargetServer());
     }
-    
+
     @Override
     public void syncData(DistroData data, String targetServer, DistroCallback callback) {
-    
+
     }
-    
+
     @Override
     public boolean syncVerifyData(DistroData verifyData, String targetServer) {
         if (!memberManager.hasMember(targetServer)) {
@@ -64,12 +64,12 @@ public class DistroHttpAgent implements DistroTransportAgent {
         NamingProxy.syncCheckSums(verifyData.getContent(), targetServer);
         return true;
     }
-    
+
     @Override
     public void syncVerifyData(DistroData verifyData, String targetServer, DistroCallback callback) {
-    
+
     }
-    
+
     @Override
     public DistroData getData(DistroKey key, String targetServer) {
         try {
@@ -86,7 +86,7 @@ public class DistroHttpAgent implements DistroTransportAgent {
             throw new DistroException(String.format("Get data from %s failed.", key.getTargetServer()), e);
         }
     }
-    
+
     @Override
     public DistroData getDatumSnapshot(String targetServer) {
         try {

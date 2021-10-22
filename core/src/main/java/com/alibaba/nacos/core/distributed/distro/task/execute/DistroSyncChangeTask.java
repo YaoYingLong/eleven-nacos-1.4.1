@@ -29,24 +29,24 @@ import com.alibaba.nacos.core.utils.Loggers;
  * @author xiweng.yy
  */
 public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
-    
+
     private final DistroComponentHolder distroComponentHolder;
-    
+
     public DistroSyncChangeTask(DistroKey distroKey, DistroComponentHolder distroComponentHolder) {
         super(distroKey);
         this.distroComponentHolder = distroComponentHolder;
     }
-    
+
     @Override
-    public void run() {
+    public void run() { // 最终客户端服务同步是通过该线程来完成的
         Loggers.DISTRO.info("[DISTRO-START] {}", toString());
         try {
             String type = getDistroKey().getResourceType();
             DistroData distroData = distroComponentHolder.findDataStorage(type).getDistroData(getDistroKey());
-            distroData.setType(DataOperation.CHANGE);
+            distroData.setType(DataOperation.CHANGE); // DistroData其实就是序列化好的Datum
             boolean result = distroComponentHolder.findTransportAgent(type).syncData(distroData, getDistroKey().getTargetServer());
             if (!result) {
-                handleFailedTask();
+                handleFailedTask(); // 失败重试
             }
             Loggers.DISTRO.info("[DISTRO-END] {} result: {}", toString(), result);
         } catch (Exception e) {
@@ -54,7 +54,7 @@ public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
             handleFailedTask();
         }
     }
-    
+
     private void handleFailedTask() {
         String type = getDistroKey().getResourceType();
         DistroFailedTaskHandler failedTaskHandler = distroComponentHolder.findFailedTaskHandler(type);
@@ -64,7 +64,7 @@ public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
         }
         failedTaskHandler.retry(getDistroKey(), DataOperation.CHANGE);
     }
-    
+
     @Override
     public String toString() {
         return "DistroSyncChangeTask for " + getDistroKey().toString();
