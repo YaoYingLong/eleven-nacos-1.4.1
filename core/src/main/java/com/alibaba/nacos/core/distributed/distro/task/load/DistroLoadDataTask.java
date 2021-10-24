@@ -37,76 +37,72 @@ import java.util.concurrent.TimeUnit;
  * @author xiweng.yy
  */
 public class DistroLoadDataTask implements Runnable {
-    
+
     private final ServerMemberManager memberManager;
-    
+
     private final DistroComponentHolder distroComponentHolder;
-    
+
     private final DistroConfig distroConfig;
-    
+
     private final DistroCallback loadCallback;
-    
+
     private final Map<String, Boolean> loadCompletedMap;
-    
-    public DistroLoadDataTask(ServerMemberManager memberManager, DistroComponentHolder distroComponentHolder,
-            DistroConfig distroConfig, DistroCallback loadCallback) {
+
+    public DistroLoadDataTask(ServerMemberManager memberManager, DistroComponentHolder distroComponentHolder, DistroConfig distroConfig, DistroCallback loadCallback) {
         this.memberManager = memberManager;
         this.distroComponentHolder = distroComponentHolder;
         this.distroConfig = distroConfig;
         this.loadCallback = loadCallback;
         loadCompletedMap = new HashMap<>(1);
     }
-    
+
     @Override
     public void run() {
         try {
-            load();
-            if (!checkCompleted()) {
+            load(); // 加载数据
+            if (!checkCompleted()) { // 若数据加载失败则重试
                 GlobalExecutor.submitLoadDataTask(this, distroConfig.getLoadDataRetryDelayMillis());
             } else {
-                loadCallback.onSuccess();
+                loadCallback.onSuccess(); // 加载成功将isInitialized设置为true
                 Loggers.DISTRO.info("[DISTRO-INIT] load snapshot data success");
             }
         } catch (Exception e) {
-            loadCallback.onFailed(e);
+            loadCallback.onFailed(e); // 异常将isInitialized设置为false
             Loggers.DISTRO.error("[DISTRO-INIT] load snapshot data failed. ", e);
         }
     }
-    
+
     private void load() throws Exception {
-        while (memberManager.allMembersWithoutSelf().isEmpty()) {
+        while (memberManager.allMembersWithoutSelf().isEmpty()) { // 等待成员数据加载完成
             Loggers.DISTRO.info("[DISTRO-INIT] waiting server list init...");
             TimeUnit.SECONDS.sleep(1);
         }
-        while (distroComponentHolder.getDataStorageTypes().isEmpty()) {
+        while (distroComponentHolder.getDataStorageTypes().isEmpty()) { // 等待缓存实例加载完成
             Loggers.DISTRO.info("[DISTRO-INIT] waiting distro data storage register...");
             TimeUnit.SECONDS.sleep(1);
         }
         for (String each : distroComponentHolder.getDataStorageTypes()) {
             if (!loadCompletedMap.containsKey(each) || !loadCompletedMap.get(each)) {
-                loadCompletedMap.put(each, loadAllDataSnapshotFromRemote(each));
+                loadCompletedMap.put(each, loadAllDataSnapshotFromRemote(each)); // 从其他服务端成员加载数据镜像
             }
         }
     }
-    
+
     private boolean loadAllDataSnapshotFromRemote(String resourceType) {
         DistroTransportAgent transportAgent = distroComponentHolder.findTransportAgent(resourceType);
         DistroDataProcessor dataProcessor = distroComponentHolder.findDataProcessor(resourceType);
         if (null == transportAgent || null == dataProcessor) {
-            Loggers.DISTRO.warn("[DISTRO-INIT] Can't find component for type {}, transportAgent: {}, dataProcessor: {}",
-                    resourceType, transportAgent, dataProcessor);
+            Loggers.DISTRO.warn("[DISTRO-INIT] Can't find component for type {}, transportAgent: {}, dataProcessor: {}", resourceType, transportAgent, dataProcessor);
             return false;
         }
-        for (Member each : memberManager.allMembersWithoutSelf()) {
+        for (Member each : memberManager.allMembersWithoutSelf()) { // 遍历除自己以外的所有其它服务端成员
             try {
                 Loggers.DISTRO.info("[DISTRO-INIT] load snapshot {} from {}", resourceType, each.getAddress());
-                DistroData distroData = transportAgent.getDatumSnapshot(each.getAddress());
-                boolean result = dataProcessor.processSnapshot(distroData);
-                Loggers.DISTRO
-                        .info("[DISTRO-INIT] load snapshot {} from {} result: {}", resourceType, each.getAddress(),
-                                result);
+                DistroData distroData = transportAgent.getDatumSnapshot(each.getAddress()); // 通过HTTP接口获取目标成员中的注册服务数据
+                boolean result = dataProcessor.processSnapshot(distroData); // 解析数据并更新到缓存和注册表中
+                Loggers.DISTRO.info("[DISTRO-INIT] load snapshot {} from {} result: {}", resourceType, each.getAddress(), result);
                 if (result) {
-                    return true;
+                    return true; // 只要有一个成功则退出循环
                 }
             } catch (Exception e) {
                 Loggers.DISTRO.error("[DISTRO-INIT] load snapshot {} from {} failed.", resourceType, each.getAddress(), e);
@@ -114,7 +110,7 @@ public class DistroLoadDataTask implements Runnable {
         }
         return false;
     }
-    
+
     private boolean checkCompleted() {
         if (distroComponentHolder.getDataStorageTypes().size() != loadCompletedMap.size()) {
             return false;

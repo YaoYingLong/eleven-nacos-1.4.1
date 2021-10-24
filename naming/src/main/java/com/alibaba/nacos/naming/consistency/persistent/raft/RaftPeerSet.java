@@ -72,7 +72,7 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
 
     @PostConstruct
     public void init() {
-        NotifyCenter.registerSubscriber(this);
+        NotifyCenter.registerSubscriber(this); // 注册当前RaftPeerSet为订阅者
         changePeers(memberManager.allMembers());
     }
 
@@ -317,7 +317,6 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
             }
             RaftPeer raftPeer = new RaftPeer();
             raftPeer.ip = address;
-
             // first time meet the local server:
             if (EnvUtil.getLocalAddress().equals(address)) {
                 raftPeer.term.set(localTerm.get());

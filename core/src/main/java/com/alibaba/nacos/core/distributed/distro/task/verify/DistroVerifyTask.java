@@ -31,43 +31,42 @@ import java.util.List;
  * @author xiweng.yy
  */
 public class DistroVerifyTask implements Runnable {
-    
+
     private final ServerMemberManager serverMemberManager;
-    
+
     private final DistroComponentHolder distroComponentHolder;
-    
+
     public DistroVerifyTask(ServerMemberManager serverMemberManager, DistroComponentHolder distroComponentHolder) {
         this.serverMemberManager = serverMemberManager;
         this.distroComponentHolder = distroComponentHolder;
     }
-    
+
     @Override
     public void run() {
         try {
-            List<Member> targetServer = serverMemberManager.allMembersWithoutSelf();
+            List<Member> targetServer = serverMemberManager.allMembersWithoutSelf(); // 获取所有除开自己的其它服务端成员
             if (Loggers.DISTRO.isDebugEnabled()) {
                 Loggers.DISTRO.debug("server list is: {}", targetServer);
             }
-            for (String each : distroComponentHolder.getDataStorageTypes()) {
+            for (String each : distroComponentHolder.getDataStorageTypes()) { // 目前就DistroDataStorageImpl一个实现
                 verifyForDataStorage(each, targetServer);
             }
         } catch (Exception e) {
             Loggers.DISTRO.error("[DISTRO-FAILED] verify task failed.", e);
         }
     }
-    
+
     private void verifyForDataStorage(String type, List<Member> targetServer) {
-        DistroData distroData = distroComponentHolder.findDataStorage(type).getVerifyData();
+        DistroData distroData = distroComponentHolder.findDataStorage(type).getVerifyData(); // 获取本机上所有客户端服务的注册keyChecksums
         if (null == distroData) {
-            return;
+            return; // 若没有任何客户端注册在本实例上
         }
         distroData.setType(DataOperation.VERIFY);
         for (Member member : targetServer) {
             try {
                 distroComponentHolder.findTransportAgent(type).syncVerifyData(distroData, member.getAddress());
             } catch (Exception e) {
-                Loggers.DISTRO.error(String
-                        .format("[DISTRO-FAILED] verify data for type %s to %s failed.", type, member.getAddress()), e);
+                Loggers.DISTRO.error(String.format("[DISTRO-FAILED] verify data for type %s to %s failed.", type, member.getAddress()), e);
             }
         }
     }

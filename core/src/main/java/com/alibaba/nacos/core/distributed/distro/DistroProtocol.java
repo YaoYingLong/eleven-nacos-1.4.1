@@ -53,8 +53,7 @@ public class DistroProtocol {
 
     private volatile boolean isInitialized = false;
 
-    public DistroProtocol(ServerMemberManager memberManager, DistroComponentHolder distroComponentHolder,
-            DistroTaskEngineHolder distroTaskEngineHolder, DistroConfig distroConfig) {
+    public DistroProtocol(ServerMemberManager memberManager, DistroComponentHolder distroComponentHolder, DistroTaskEngineHolder distroTaskEngineHolder, DistroConfig distroConfig) {
         this.memberManager = memberManager;
         this.distroComponentHolder = distroComponentHolder;
         this.distroTaskEngineHolder = distroTaskEngineHolder;
@@ -67,8 +66,8 @@ public class DistroProtocol {
             isInitialized = true;
             return;
         }
-        startVerifyTask();
-        startLoadTask();
+        startVerifyTask(); // 注册的客户端服务校验5s后开始，每5s执行一次
+        startLoadTask(); // 注册的客户端服务数据同步
     }
 
     private void startLoadTask() {
@@ -77,19 +76,16 @@ public class DistroProtocol {
             public void onSuccess() {
                 isInitialized = true;
             }
-
             @Override
             public void onFailed(Throwable throwable) {
                 isInitialized = false;
             }
         };
-        GlobalExecutor.submitLoadDataTask(
-                new DistroLoadDataTask(memberManager, distroComponentHolder, distroConfig, loadCallback));
+        GlobalExecutor.submitLoadDataTask(new DistroLoadDataTask(memberManager, distroComponentHolder, distroConfig, loadCallback));
     }
 
     private void startVerifyTask() {
-        GlobalExecutor.schedulePartitionDataTimedSync(new DistroVerifyTask(memberManager, distroComponentHolder),
-                distroConfig.getVerifyIntervalMillis());
+        GlobalExecutor.schedulePartitionDataTimedSync(new DistroVerifyTask(memberManager, distroComponentHolder), distroConfig.getVerifyIntervalMillis());
     }
 
     public boolean isInitialized() {
@@ -114,6 +110,7 @@ public class DistroProtocol {
      */
     public void sync(DistroKey distroKey, DataOperation action, long delay) { // delay默认值为1000
         for (Member each : memberManager.allMembersWithoutSelf()) { // 遍历每个除自己以外的其它成员
+            // DistroKey的resourceKey对应的是DataStore中dataMap的key用于获取缓存Service信息的Datum
             DistroKey distroKeyWithTarget = new DistroKey(distroKey.getResourceKey(), distroKey.getResourceType(), each.getAddress());
             DistroDelayTask distroDelayTask = new DistroDelayTask(distroKeyWithTarget, action, delay);
             distroTaskEngineHolder.getDelayTaskExecuteEngine().addTask(distroKeyWithTarget, distroDelayTask);

@@ -123,10 +123,8 @@ public class HttpHealthCheckProcessor implements HealthCheckProcessor {
             int httpCode = result.getCode();
             if (HttpURLConnection.HTTP_OK == httpCode) {
                 healthCheckCommon.checkOK(ip, task, "http:" + httpCode);
-                healthCheckCommon.reEvaluateCheckRT(System.currentTimeMillis() - startTime, task,
-                        switchDomain.getHttpHealthParams());
-            } else if (HttpURLConnection.HTTP_UNAVAILABLE == httpCode
-                    || HttpURLConnection.HTTP_MOVED_TEMP == httpCode) {
+                healthCheckCommon.reEvaluateCheckRT(System.currentTimeMillis() - startTime, task, switchDomain.getHttpHealthParams());
+            } else if (HttpURLConnection.HTTP_UNAVAILABLE == httpCode || HttpURLConnection.HTTP_MOVED_TEMP == httpCode) {
                 // server is busy, need verification later
                 healthCheckCommon.checkFail(ip, task, "http:" + httpCode);
                 healthCheckCommon

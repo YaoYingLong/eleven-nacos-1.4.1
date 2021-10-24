@@ -59,7 +59,7 @@ public class DistroHttpAgent implements DistroTransportAgent {
     @Override
     public boolean syncVerifyData(DistroData verifyData, String targetServer) {
         if (!memberManager.hasMember(targetServer)) {
-            return true;
+            return true; // 若当前服务端实例不在成员列表中
         }
         NamingProxy.syncCheckSums(verifyData.getContent(), targetServer);
         return true;
@@ -88,7 +88,7 @@ public class DistroHttpAgent implements DistroTransportAgent {
     }
 
     @Override
-    public DistroData getDatumSnapshot(String targetServer) {
+    public DistroData getDatumSnapshot(String targetServer) { // 通过HTTP接口获取目标成员中的注册服务数据
         try {
             byte[] allDatum = NamingProxy.getAllData(targetServer);
             return new DistroData(new DistroKey("snapshot", KeyBuilder.INSTANCE_LIST_KEY_PREFIX), allDatum);

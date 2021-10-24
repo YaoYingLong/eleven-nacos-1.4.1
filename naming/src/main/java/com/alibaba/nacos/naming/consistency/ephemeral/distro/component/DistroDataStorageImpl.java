@@ -36,16 +36,16 @@ import java.util.Map;
  * @author xiweng.yy
  */
 public class DistroDataStorageImpl implements DistroDataStorage {
-    
+
     private final DataStore dataStore;
-    
+
     private final DistroMapper distroMapper;
-    
+
     public DistroDataStorageImpl(DataStore dataStore, DistroMapper distroMapper) {
         this.dataStore = dataStore;
         this.distroMapper = distroMapper;
     }
-    
+
     @Override
     public DistroData getDistroData(DistroKey distroKey) {
         Map<String, Datum> result = new HashMap<>(1);
@@ -58,7 +58,7 @@ public class DistroDataStorageImpl implements DistroDataStorage {
         byte[] dataContent = ApplicationUtils.getBean(Serializer.class).serialize(result);
         return new DistroData(distroKey, dataContent);
     }
-    
+
     @Override
     public DistroData getDatumSnapshot() {
         Map<String, Datum> result = dataStore.getDataMap();
@@ -66,22 +66,22 @@ public class DistroDataStorageImpl implements DistroDataStorage {
         DistroKey distroKey = new DistroKey("snapshot", KeyBuilder.INSTANCE_LIST_KEY_PREFIX);
         return new DistroData(distroKey, dataContent);
     }
-    
+
     @Override
     public DistroData getVerifyData() {
         Map<String, String> keyChecksums = new HashMap<>(64);
         for (String key : dataStore.keys()) {
             if (!distroMapper.responsible(KeyBuilder.getServiceName(key))) {
-                continue;
+                continue; // 若key对应的客户端服务不是注册在当前的服务端上
             }
             Datum datum = dataStore.get(key);
             if (datum == null) {
-                continue;
+                continue; // 若当前Key获取到的Service缓存数据为null
             }
             keyChecksums.put(key, datum.value.getChecksum());
         }
         if (keyChecksums.isEmpty()) {
-            return null;
+            return null; // 若没有找到注册的服务信息
         }
         DistroKey distroKey = new DistroKey("checksum", KeyBuilder.INSTANCE_LIST_KEY_PREFIX);
         return new DistroData(distroKey, ApplicationUtils.getBean(Serializer.class).serialize(keyChecksums));

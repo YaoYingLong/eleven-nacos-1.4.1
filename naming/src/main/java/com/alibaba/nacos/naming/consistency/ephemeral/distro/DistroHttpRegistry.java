@@ -37,21 +37,21 @@ import javax.annotation.PostConstruct;
  */
 @Component
 public class DistroHttpRegistry {
-    
+
     private final DistroComponentHolder componentHolder;
-    
+
     private final DistroTaskEngineHolder taskEngineHolder;
-    
+
     private final DataStore dataStore;
-    
+
     private final DistroMapper distroMapper;
-    
+
     private final GlobalConfig globalConfig;
-    
+
     private final DistroConsistencyServiceImpl consistencyService;
-    
+
     private final ServerMemberManager memberManager;
-    
+
     public DistroHttpRegistry(DistroComponentHolder componentHolder, DistroTaskEngineHolder taskEngineHolder,
             DataStore dataStore, DistroMapper distroMapper, GlobalConfig globalConfig,
             DistroConsistencyServiceImpl consistencyService, ServerMemberManager memberManager) {
@@ -63,19 +63,16 @@ public class DistroHttpRegistry {
         this.consistencyService = consistencyService;
         this.memberManager = memberManager;
     }
-    
+
     /**
      * Register necessary component to distro protocol for HTTP implement.
      */
     @PostConstruct
     public void doRegister() {
-        componentHolder.registerDataStorage(KeyBuilder.INSTANCE_LIST_KEY_PREFIX,
-                new DistroDataStorageImpl(dataStore, distroMapper));
+        componentHolder.registerDataStorage(KeyBuilder.INSTANCE_LIST_KEY_PREFIX, new DistroDataStorageImpl(dataStore, distroMapper));
         componentHolder.registerTransportAgent(KeyBuilder.INSTANCE_LIST_KEY_PREFIX, new DistroHttpAgent(memberManager));
-        componentHolder.registerFailedTaskHandler(KeyBuilder.INSTANCE_LIST_KEY_PREFIX,
-                new DistroHttpCombinedKeyTaskFailedHandler(globalConfig, taskEngineHolder));
-        taskEngineHolder.registerNacosTaskProcessor(KeyBuilder.INSTANCE_LIST_KEY_PREFIX,
-                new DistroHttpDelayTaskProcessor(globalConfig, taskEngineHolder));
+        componentHolder.registerFailedTaskHandler(KeyBuilder.INSTANCE_LIST_KEY_PREFIX, new DistroHttpCombinedKeyTaskFailedHandler(globalConfig, taskEngineHolder));
+        taskEngineHolder.registerNacosTaskProcessor(KeyBuilder.INSTANCE_LIST_KEY_PREFIX, new DistroHttpDelayTaskProcessor(globalConfig, taskEngineHolder));
         componentHolder.registerDataProcessor(consistencyService);
     }
 }

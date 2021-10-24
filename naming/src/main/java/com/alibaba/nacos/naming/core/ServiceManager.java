@@ -116,8 +116,7 @@ public class ServiceManager implements RecordListener<Service> {
     @Value("${nacos.naming.empty-service.clean.period-time-ms:20000}")
     private int cleanEmptyServicePeriod;
 
-    public ServiceManager(SwitchDomain switchDomain, DistroMapper distroMapper, ServerMemberManager memberManager,
-            PushService pushService, RaftPeerSet raftPeerSet) {
+    public ServiceManager(SwitchDomain switchDomain, DistroMapper distroMapper, ServerMemberManager memberManager, PushService pushService, RaftPeerSet raftPeerSet) {
         this.switchDomain = switchDomain;
         this.distroMapper = distroMapper;
         this.memberManager = memberManager;
@@ -193,24 +192,16 @@ public class ServiceManager implements RecordListener<Service> {
                 Loggers.SRV_LOG.warn("received empty push from raft, key: {}", key);
                 return;
             }
-
             if (StringUtils.isBlank(service.getNamespaceId())) {
                 service.setNamespaceId(Constants.DEFAULT_NAMESPACE_ID);
             }
-
             Loggers.RAFT.info("[RAFT-NOTIFIER] datum is changed, key: {}, value: {}", key, service);
-
             Service oldDom = getService(service.getNamespaceId(), service.getName());
-
             if (oldDom != null) {
                 oldDom.update(service);
                 // re-listen to handle the situation when the underlying listener is removed:
-                consistencyService
-                        .listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true),
-                                oldDom);
-                consistencyService
-                        .listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false),
-                                oldDom);
+                consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), oldDom);
+                consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), oldDom);
             } else {
                 putServiceAndInit(service);
             }
@@ -225,21 +216,18 @@ public class ServiceManager implements RecordListener<Service> {
         String name = KeyBuilder.getServiceName(key);
         Service service = chooseServiceMap(namespace).get(name);
         Loggers.RAFT.info("[RAFT-NOTIFIER] datum is deleted, key: {}", key);
-
         if (service != null) {
             service.destroy();
             String ephemeralInstanceListKey = KeyBuilder.buildInstanceListKey(namespace, name, true);
             String persistInstanceListKey = KeyBuilder.buildInstanceListKey(namespace, name, false);
             consistencyService.remove(ephemeralInstanceListKey);
             consistencyService.remove(persistInstanceListKey);
-
             // remove listeners of key to avoid mem leak
             consistencyService.unListen(ephemeralInstanceListKey, service);
             consistencyService.unListen(persistInstanceListKey, service);
             consistencyService.unListen(KeyBuilder.buildServiceMetaKey(namespace, name), service);
             Loggers.SRV_LOG.info("[DEAD-SERVICE] {}", service.toJson());
         }
-
         chooseServiceMap(namespace).remove(name);
     }
 
@@ -612,7 +600,7 @@ public class ServiceManager implements RecordListener<Service> {
             List<Instance> instanceList = addIpAddresses(service, ephemeral, ips); // 获取实例后最新实例列表
             Instances instances = new Instances();
             instances.setInstanceList(instanceList);
-            consistencyService.put(key, instances);
+            consistencyService.put(key, instances); // 将实例对象添加到注册表，以及同步给其它服务端成员
         }
     }
 
@@ -817,8 +805,8 @@ public class ServiceManager implements RecordListener<Service> {
     }
 
     private void putServiceAndInit(Service service) throws NacosException {
-        putService(service);
-        service.init();
+        putService(service); // 将服务添加到注册表
+        service.init(); // 心跳检查注册
         consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);
         consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), service);
         Loggers.SRV_LOG.info("[NEW-SERVICE] {}", service.toJson());

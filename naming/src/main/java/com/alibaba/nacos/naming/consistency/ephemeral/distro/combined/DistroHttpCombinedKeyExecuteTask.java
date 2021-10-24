@@ -33,15 +33,15 @@ import com.alibaba.nacos.naming.misc.Loggers;
  * @author xiweng.yy
  */
 public class DistroHttpCombinedKeyExecuteTask extends AbstractExecuteTask {
-    
+
     private final GlobalConfig globalConfig;
-    
+
     private final DistroDelayTaskExecuteEngine distroDelayTaskExecuteEngine;
-    
+
     private final DistroKey singleDistroKey;
-    
+
     private final DataOperation taskAction;
-    
+
     public DistroHttpCombinedKeyExecuteTask(GlobalConfig globalConfig,
             DistroDelayTaskExecuteEngine distroDelayTaskExecuteEngine, DistroKey singleDistroKey,
             DataOperation taskAction) {
@@ -50,14 +50,12 @@ public class DistroHttpCombinedKeyExecuteTask extends AbstractExecuteTask {
         this.singleDistroKey = singleDistroKey;
         this.taskAction = taskAction;
     }
-    
+
     @Override
     public void run() {
         try {
-            DistroKey newKey = new DistroKey(DistroHttpCombinedKey.getSequenceKey(),
-                    DistroHttpCombinedKeyDelayTask.class.getSimpleName(), singleDistroKey.getTargetServer());
-            DistroHttpCombinedKeyDelayTask combinedTask = new DistroHttpCombinedKeyDelayTask(newKey, taskAction,
-                    globalConfig.getTaskDispatchPeriod() / 2, globalConfig.getBatchSyncKeyCount());
+            DistroKey newKey = new DistroKey(DistroHttpCombinedKey.getSequenceKey(), DistroHttpCombinedKeyDelayTask.class.getSimpleName(), singleDistroKey.getTargetServer());
+            DistroHttpCombinedKeyDelayTask combinedTask = new DistroHttpCombinedKeyDelayTask(newKey, taskAction, globalConfig.getTaskDispatchPeriod() / 2, globalConfig.getBatchSyncKeyCount());
             combinedTask.getActualResourceKeys().add(singleDistroKey.getResourceKey());
             distroDelayTaskExecuteEngine.addTask(newKey, combinedTask);
         } catch (Exception e) {
