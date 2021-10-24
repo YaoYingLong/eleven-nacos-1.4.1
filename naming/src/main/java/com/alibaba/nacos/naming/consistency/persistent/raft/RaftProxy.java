@@ -16,10 +16,10 @@
 
 package com.alibaba.nacos.naming.consistency.persistent.raft;
 
-import com.alibaba.nacos.common.utils.IPUtil;
-import com.alibaba.nacos.sys.env.EnvUtil;
 import com.alibaba.nacos.common.model.RestResult;
+import com.alibaba.nacos.common.utils.IPUtil;
 import com.alibaba.nacos.naming.misc.HttpClient;
+import com.alibaba.nacos.sys.env.EnvUtil;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 
@@ -28,13 +28,13 @@ import java.util.Map;
 /**
  * Raft http proxy.
  *
- * @deprecated will remove in 1.4.x
  * @author nacos
+ * @deprecated will remove in 1.4.x
  */
 @Deprecated
 @Component
 public class RaftProxy {
-    
+
     /**
      * Proxy get method.
      *
@@ -49,13 +49,13 @@ public class RaftProxy {
             server = server + IPUtil.IP_PORT_SPLITER + EnvUtil.getPort();
         }
         String url = "http://" + server + EnvUtil.getContextPath() + api;
-        
+
         RestResult<String> result = HttpClient.httpGet(url, null, params);
         if (!result.ok()) {
             throw new IllegalStateException("leader failed, caused by: " + result.getMessage());
         }
     }
-    
+
     /**
      * Proxy specified method.
      *
@@ -85,12 +85,12 @@ public class RaftProxy {
             default:
                 throw new RuntimeException("unsupported method:" + method);
         }
-        
+
         if (!result.ok()) {
             throw new IllegalStateException("leader failed, caused by: " + result.getMessage());
         }
     }
-    
+
     /**
      * Proxy post method with large body.
      *
@@ -100,14 +100,11 @@ public class RaftProxy {
      * @param headers headers
      * @throws Exception any exception during request
      */
-    public void proxyPostLarge(String server, String api, String content, Map<String, String> headers)
-            throws Exception {
-        // do proxy
-        if (!IPUtil.containsPort(server)) {
+    public void proxyPostLarge(String server, String api, String content, Map<String, String> headers) throws Exception {
+        if (!IPUtil.containsPort(server)) {  // do proxy 调用
             server = server + IPUtil.IP_PORT_SPLITER + EnvUtil.getPort();
         }
         String url = "http://" + server + EnvUtil.getContextPath() + api;
-        
         RestResult<String> result = HttpClient.httpPostLarge(url, headers, content);
         if (!result.ok()) {
             throw new IllegalStateException("leader failed, caused by: " + result.getMessage());

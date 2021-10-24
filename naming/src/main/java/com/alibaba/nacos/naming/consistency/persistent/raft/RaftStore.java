@@ -246,21 +246,14 @@ public class RaftStore implements Closeable {
      * @throws Exception any exception during writing
      */
     public synchronized void write(final Datum datum) throws Exception {
-
         String namespaceId = KeyBuilder.getNamespace(datum.key);
-
         File cacheFile = new File(cacheFileName(namespaceId, datum.key));
-
         if (!cacheFile.exists() && !cacheFile.getParentFile().mkdirs() && !cacheFile.createNewFile()) {
             MetricsMonitor.getDiskException().increment();
-
             throw new IllegalStateException("can not make cache file: " + cacheFile.getName());
         }
-
         ByteBuffer data;
-
         data = ByteBuffer.wrap(JacksonUtils.toJson(datum).getBytes(StandardCharsets.UTF_8));
-
         try (FileChannel fc = new FileOutputStream(cacheFile, false).getChannel()) {
             fc.write(data, data.position());
             fc.force(true);
@@ -272,13 +265,10 @@ public class RaftStore implements Closeable {
         // remove old format file:
         if (StringUtils.isNoneBlank(namespaceId)) {
             if (datum.key.contains(Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER)) {
-                String oldDatumKey = datum.key
-                        .replace(Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER, StringUtils.EMPTY);
-
+                String oldDatumKey = datum.key.replace(Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER, StringUtils.EMPTY);
                 cacheFile = new File(cacheFileName(namespaceId, oldDatumKey));
                 if (cacheFile.exists() && !cacheFile.delete()) {
-                    Loggers.RAFT.error("[RAFT-DELETE] failed to delete old format datum: {}, value: {}", datum.key,
-                            datum.value);
+                    Loggers.RAFT.error("[RAFT-DELETE] failed to delete old format datum: {}, value: {}", datum.key, datum.value);
                     throw new IllegalStateException("failed to delete old format datum: " + datum.key);
                 }
             }
@@ -290,7 +280,6 @@ public class RaftStore implements Closeable {
         if (!cacheDir.exists() && !cacheDir.mkdirs()) {
             throw new IllegalStateException("cloud not make out directory: " + cacheDir.getName());
         }
-
         return cacheDir.listFiles();
     }
 
