@@ -72,8 +72,8 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
 
     @PostConstruct
     public void init() {
-        NotifyCenter.registerSubscriber(this); // 注册当前RaftPeerSet为订阅者
-        changePeers(memberManager.allMembers());
+        NotifyCenter.registerSubscriber(this); // 注册当前RaftPeerSet为MemberChangeEvent事件的订阅者
+        changePeers(memberManager.allMembers()); // 传入所有服务端成员初始化peers
     }
 
     @Override
@@ -175,22 +175,22 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
         SortedBag ips = new TreeBag();
         int maxApproveCount = 0;
         String maxApprovePeer = null;
-        for (RaftPeer peer : peers.values()) {
+        for (RaftPeer peer : peers.values()) { // 遍历所有节点，若voteFor不为null，则将节点的voteFor添加到ips中，并记录被选举次数最多的节点和次数
             if (StringUtils.isEmpty(peer.voteFor)) {
-                continue;
+                continue; // 若投票结果为null则直接跳过
             }
-            ips.add(peer.voteFor);
+            ips.add(peer.voteFor); // 将投票添加到ips中
             if (ips.getCount(peer.voteFor) > maxApproveCount) {
                 maxApproveCount = ips.getCount(peer.voteFor);
                 maxApprovePeer = peer.voteFor;
             }
         }
-        if (maxApproveCount >= majorityCount()) {
-            RaftPeer peer = peers.get(maxApprovePeer);
-            peer.state = RaftPeer.State.LEADER;
+        if (maxApproveCount >= majorityCount()) { // 若票数超过一半
+            RaftPeer peer = peers.get(maxApprovePeer); // 获取出该节点
+            peer.state = RaftPeer.State.LEADER;  // 将该节点状态设置为leader节点
             if (!Objects.equals(leader, peer)) {
-                leader = peer;
-                ApplicationUtils.publishEvent(new LeaderElectFinishedEvent(this, leader, local()));
+                leader = peer; // 若leader节点不是改节点，将leader节点设置为该节点
+                ApplicationUtils.publishEvent(new LeaderElectFinishedEvent(this, leader, local())); // 发布选举结果事件，RaftListener
                 Loggers.RAFT.info("{} has become the LEADER", leader.ip);
             }
         }
@@ -247,12 +247,12 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
      *
      * @return local raft peer
      */
-    public RaftPeer local() {
-        RaftPeer peer = peers.get(EnvUtil.getLocalAddress());
-        if (peer == null && EnvUtil.getStandaloneMode()) {
-            RaftPeer localPeer = new RaftPeer();
+    public RaftPeer local() { // peers在init()方法中已被初始化
+        RaftPeer peer = peers.get(EnvUtil.getLocalAddress()); // 通过本机地址获取RaftPeer
+        if (peer == null && EnvUtil.getStandaloneMode()) { // 若通过本机地址未获取到RaftPeer且是Standalone模式启动
+            RaftPeer localPeer = new RaftPeer(); // 新建一个RaftPeer将其ip设置为本机地址
             localPeer.ip = NetUtils.localServer();
-            localPeer.term.set(localTerm.get());
+            localPeer.term.set(localTerm.get()); // 开始周期term为0
             peers.put(localPeer.ip, localPeer);
             return localPeer;
         }
@@ -273,10 +273,8 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
     /**
      * Reset set.
      */
-    public void reset() {
-
+    public void reset() { // 将leader和所有的RaftPeer的voteFor字段置null
         leader = null;
-
         for (RaftPeer peer : peers.values()) {
             peer.voteFor = null;
         }
@@ -311,15 +309,15 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
         Map<String, RaftPeer> tmpPeers = new HashMap<>(members.size());
         for (Member member : members) {
             final String address = member.getAddress();
-            if (peers.containsKey(address)) {
+            if (peers.containsKey(address)) { // 若已包含则获取原来的设置到tmpPeers中
                 tmpPeers.put(address, peers.get(address));
                 continue;
             }
-            RaftPeer raftPeer = new RaftPeer();
-            raftPeer.ip = address;
+            RaftPeer raftPeer = new RaftPeer(); // 若不存在则创建一个RaftPeer
+            raftPeer.ip = address; // 初始化ip为当前成员的地址
             // first time meet the local server:
             if (EnvUtil.getLocalAddress().equals(address)) {
-                raftPeer.term.set(localTerm.get());
+                raftPeer.term.set(localTerm.get()); // 若当前成员为本机则设置周期term，localTerm起始为0
             }
             tmpPeers.put(address, raftPeer);
         }

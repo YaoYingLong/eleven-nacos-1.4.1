@@ -79,10 +79,10 @@ public class RaftStore implements Closeable {
         for (File cache : listCaches()) {
             if (cache.isDirectory() && cache.listFiles() != null) {
                 for (File datumFile : cache.listFiles()) {
-                    datum = readDatum(datumFile, cache.getName());
+                    datum = readDatum(datumFile, cache.getName()); // 读取文件中缓存的数据
                     if (datum != null) {
                         datums.put(datum.key, datum);
-                        if (notifier != null) {
+                        if (notifier != null) { // 通知PersistentNotifier订阅者
                             NotifyCenter.publishEvent(ValueChangeEvent.builder().key(datum.key).action(DataOperation.CHANGE).build());
                         }
                     }
@@ -104,11 +104,10 @@ public class RaftStore implements Closeable {
      * @throws Exception any exception during load
      */
     public synchronized Properties loadMeta() throws Exception {
-        File metaFile = new File(META_FILE_NAME);
+        File metaFile = new File(META_FILE_NAME); // 加载{nacos_home}\data\naming\meta.properties文件
         if (!metaFile.exists() && !metaFile.getParentFile().mkdirs() && !metaFile.createNewFile()) {
             throw new IllegalStateException("failed to create meta file: " + metaFile.getAbsolutePath());
         }
-
         try (FileInputStream inStream = new FileInputStream(metaFile)) {
             meta.load(inStream);
         }
@@ -143,56 +142,43 @@ public class RaftStore implements Closeable {
 
     private synchronized Datum readDatum(File file, String namespaceId) throws IOException {
         if (!KeyBuilder.isDatumCacheFile(file.getName())) {
-            return null;
+            return null; // 若文件名不是以com.alibaba.nacos.naming开头的文件
         }
         ByteBuffer buffer;
         try (FileChannel fc = new FileInputStream(file).getChannel()) {
             buffer = ByteBuffer.allocate((int) file.length());
             fc.read(buffer);
-
             String json = new String(buffer.array(), StandardCharsets.UTF_8);
             if (StringUtils.isBlank(json)) {
                 return null;
             }
-
             final String fileName = file.getName();
-
-            if (KeyBuilder.matchSwitchKey(fileName)) {
+            if (KeyBuilder.matchSwitchKey(fileName)) { // 文件名义00-00---000-NACOS_SWITCH_DOMAIN-000---00-00结尾
                 return JacksonUtils.toObj(json, new TypeReference<Datum<SwitchDomain>>() {
                 });
             }
-
-            if (KeyBuilder.matchServiceMetaKey(fileName)) {
-
+            if (KeyBuilder.matchServiceMetaKey(fileName)) { // 文件名以com.alibaba.nacos.naming.domains.meta.或meta.开头的文件
                 Datum<Service> serviceDatum;
-
                 try {
                     serviceDatum = JacksonUtils.toObj(json.replace("\\", ""), new TypeReference<Datum<Service>>() {
                     });
                 } catch (Exception e) {
                     JsonNode jsonObject = JacksonUtils.toObj(json);
-
                     serviceDatum = new Datum<>();
                     serviceDatum.timestamp.set(jsonObject.get("timestamp").asLong());
                     serviceDatum.key = jsonObject.get("key").asText();
                     serviceDatum.value = JacksonUtils.toObj(jsonObject.get("value").toString(), Service.class);
                 }
-
                 if (StringUtils.isBlank(serviceDatum.value.getGroupName())) {
                     serviceDatum.value.setGroupName(Constants.DEFAULT_GROUP);
                 }
                 if (!serviceDatum.value.getName().contains(Constants.SERVICE_INFO_SPLITER)) {
-                    serviceDatum.value.setName(
-                            Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER + serviceDatum.value.getName());
+                    serviceDatum.value.setName(Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER + serviceDatum.value.getName());
                 }
-
                 return serviceDatum;
             }
-
-            if (KeyBuilder.matchInstanceListKey(fileName)) {
-
+            if (KeyBuilder.matchInstanceListKey(fileName)) { // 实例列表数据，文件名以com.alibaba.nacos.naming.iplist或iplist开头的文件
                 Datum<Instances> instancesDatum;
-
                 try {
                     instancesDatum = JacksonUtils.toObj(json, new TypeReference<Datum<Instances>>() {
                     });
@@ -200,29 +186,22 @@ public class RaftStore implements Closeable {
                     JsonNode jsonObject = JacksonUtils.toObj(json);
                     instancesDatum = new Datum<>();
                     instancesDatum.timestamp.set(jsonObject.get("timestamp").asLong());
-
                     String key = jsonObject.get("key").asText();
                     String serviceName = KeyBuilder.getServiceName(key);
-                    key = key.substring(0, key.indexOf(serviceName)) + Constants.DEFAULT_GROUP
-                            + Constants.SERVICE_INFO_SPLITER + serviceName;
-
+                    key = key.substring(0, key.indexOf(serviceName)) + Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER + serviceName;
                     instancesDatum.key = key;
                     instancesDatum.value = new Instances();
-                    instancesDatum.value.setInstanceList(
-                            JacksonUtils.toObj(jsonObject.get("value").toString(), new TypeReference<List<Instance>>() {
-                            }));
+                    instancesDatum.value.setInstanceList(JacksonUtils.toObj(jsonObject.get("value").toString(), new TypeReference<List<Instance>>() {
+                    }));
                     if (!instancesDatum.value.getInstanceList().isEmpty()) {
                         for (Instance instance : instancesDatum.value.getInstanceList()) {
                             instance.setEphemeral(false);
                         }
                     }
                 }
-
                 return instancesDatum;
             }
-
             return JacksonUtils.toObj(json, Datum.class);
-
         } catch (Exception e) {
             Loggers.RAFT.warn("waning: failed to deserialize key: {}", file.getName());
             throw e;

@@ -146,12 +146,12 @@ public class RaftCore implements Closeable {
         Loggers.RAFT.info("initializing Raft sub-system");
         final long start = System.currentTimeMillis();
         raftStore.loadDatums(notifier, datums); // 加载持久化数据
-        setTerm(NumberUtils.toLong(raftStore.loadMeta().getProperty("term"), 0L));
+        setTerm(NumberUtils.toLong(raftStore.loadMeta().getProperty("term"), 0L)); // 加载{nacos_home}\data\naming\meta.properties文件中的周期
         Loggers.RAFT.info("cache loaded, datum count: {}, current term: {}", datums.size(), peers.getTerm());
         initialized = true;
         Loggers.RAFT.info("finish to load data from disk, cost: {} ms.", (System.currentTimeMillis() - start));
-        masterTask = GlobalExecutor.registerMasterElection(new MasterElection());
-        heartbeatTask = GlobalExecutor.registerHeartbeat(new HeartBeat());
+        masterTask = GlobalExecutor.registerMasterElection(new MasterElection()); // 定期执行集群leader选举的MasterElection任务
+        heartbeatTask = GlobalExecutor.registerHeartbeat(new HeartBeat()); // 定时执行集群节点心跳检测的HeartBeat任务
         versionJudgement.registerObserver(isAllNewVersion -> {
             stopWork = isAllNewVersion;
             if (stopWork) {
@@ -163,7 +163,7 @@ public class RaftCore implements Closeable {
                 }
             }
         }, 100);
-        NotifyCenter.registerSubscriber(notifier);
+        NotifyCenter.registerSubscriber(notifier); // 注册PersistentNotifier订阅者
         Loggers.RAFT.info("timer started: leader timeout ms: {}, heart-beat timeout ms: {}", GlobalExecutor.LEADER_TIMEOUT_MS, GlobalExecutor.HEARTBEAT_INTERVAL_MS);
     }
 
@@ -222,14 +222,11 @@ public class RaftCore implements Closeable {
                     @Override
                     public void onReceive(RestResult<String> result) {
                         if (!result.ok()) {
-                            Loggers.RAFT
-                                .warn("[RAFT] failed to publish data to peer, datumId={}, peer={}, http code={}",
-                                    datum.key, server, result.getCode());
+                            Loggers.RAFT.warn("[RAFT] failed to publish data to peer, datumId={}, peer={}, http code={}", datum.key, server, result.getCode());
                             return;
                         }
                         latch.countDown();
                     }
-
                     @Override
                     public void onError(Throwable throwable) {
                         Loggers.RAFT.error("[RAFT] failed to publish data to peer", throwable);
@@ -432,7 +429,6 @@ public class RaftCore implements Closeable {
     }
 
     public class MasterElection implements Runnable {
-
         @Override
         public void run() {
             try {
@@ -442,41 +438,30 @@ public class RaftCore implements Closeable {
                 if (!peers.isReady()) {
                     return;
                 }
-
-                RaftPeer local = peers.local();
-                local.leaderDueMs -= GlobalExecutor.TICK_PERIOD_MS;
-
-                if (local.leaderDueMs > 0) {
+                RaftPeer local = peers.local(); // 获取本机对应的RaftPeer
+                local.leaderDueMs -= GlobalExecutor.TICK_PERIOD_MS; // leaderDueMs默认是从0到15s随机一个时间，减去500ms
+                if (local.leaderDueMs > 0) { // 若leaderDueMs>0继续等待下次执行
                     return;
                 }
-
-                // reset timeout
-                local.resetLeaderDue();
-                local.resetHeartbeatDue();
-
-                sendVote();
+                local.resetLeaderDue(); // 将leaderDueMs重置为15s + (0到5秒的随机时间) = 15s - 20s
+                local.resetHeartbeatDue(); // 将heartbeatDueMs重置为5s
+                sendVote(); // 发起集群leader投票
             } catch (Exception e) {
                 Loggers.RAFT.warn("[RAFT] error while master election {}", e);
             }
-
         }
 
         private void sendVote() {
-
-            RaftPeer local = peers.get(NetUtils.localServer());
-            Loggers.RAFT.info("leader timeout, start voting,leader: {}, term: {}", JacksonUtils.toJson(getLeader()),
-                local.term);
-
-            peers.reset();
-
-            local.term.incrementAndGet();
-            local.voteFor = local.ip;
-            local.state = RaftPeer.State.CANDIDATE;
-
+            RaftPeer local = peers.get(NetUtils.localServer()); // 获取本机对应的RaftPeer
+            Loggers.RAFT.info("leader timeout, start voting,leader: {}, term: {}", JacksonUtils.toJson(getLeader()), local.term);
+            peers.reset(); // 将leader和所有的RaftPeer的voteFor字段置null
+            local.term.incrementAndGet(); // 将本机选举周期加一
+            local.voteFor = local.ip; // 将本机的voteFor设置为本机IP
+            local.state = RaftPeer.State.CANDIDATE; // 将本机状态由FOLLOWER变更为CANDIDATE状态
             Map<String, String> params = new HashMap<>(1);
             params.put("vote", JacksonUtils.toJson(local));
-            for (final String server : peers.allServersWithoutMySelf()) {
-                final String url = buildUrl(server, API_VOTE);
+            for (final String server : peers.allServersWithoutMySelf()) { // 给所有其他成员发送投票请求
+                final String url = buildUrl(server, API_VOTE); // 目标服务成员的/raft/vote接口
                 try {
                     HttpClient.asyncHttpPost(url, null, params, new Callback<String>() {
                         @Override
@@ -485,23 +470,16 @@ public class RaftCore implements Closeable {
                                 Loggers.RAFT.error("NACOS-RAFT vote failed: {}, url: {}", result.getCode(), url);
                                 return;
                             }
-
                             RaftPeer peer = JacksonUtils.toObj(result.getData(), RaftPeer.class);
-
                             Loggers.RAFT.info("received approve from peer: {}", JacksonUtils.toJson(peer));
-
-                            peers.decideLeader(peer);
-
+                            peers.decideLeader(peer); // 计算并决定哪个节点是领导者，若有新的peer超过半数投票，则将leader更换为新peer
                         }
-
                         @Override
                         public void onError(Throwable throwable) {
                             Loggers.RAFT.error("error while sending vote to server: {}", server, throwable);
                         }
-
                         @Override
                         public void onCancel() {
-
                         }
                     });
                 } catch (Exception e) {
@@ -524,27 +502,20 @@ public class RaftCore implements Closeable {
         if (!peers.contains(remote)) {
             throw new IllegalStateException("can not find peer: " + remote.ip);
         }
-
         RaftPeer local = peers.get(NetUtils.localServer());
-        if (remote.term.get() <= local.term.get()) {
+        if (remote.term.get() <= local.term.get()) { // 若remote节点的选举周期小于或等于本机节点的选举周期
             String msg = "received illegitimate vote" + ", voter-term:" + remote.term + ", votee-term:" + local.term;
-
             Loggers.RAFT.info(msg);
             if (StringUtils.isEmpty(local.voteFor)) {
-                local.voteFor = local.ip;
+                local.voteFor = local.ip;  // 若本机的选票为空，则将选票投给自己
             }
-
             return local;
         }
-
         local.resetLeaderDue();
-
-        local.state = RaftPeer.State.FOLLOWER;
-        local.voteFor = remote.ip;
-        local.term.set(remote.term.get());
-
+        local.state = RaftPeer.State.FOLLOWER; // 将本机节点状态置为FOLLOWER
+        local.voteFor = remote.ip; // 将本机的选票投给remote节点
+        local.term.set(remote.term.get()); // 将本机的选举周期设置为remote节点的选举周期
         Loggers.RAFT.info("vote {} as leader, term: {}", remote.ip, remote.term);
-
         return local;
     }
 
