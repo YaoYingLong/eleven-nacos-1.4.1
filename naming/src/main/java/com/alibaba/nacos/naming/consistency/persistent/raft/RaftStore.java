@@ -123,16 +123,13 @@ public class RaftStore implements Closeable {
      */
     public synchronized Datum load(String key) throws Exception {
         long start = System.currentTimeMillis();
-        // load data
-        for (File cache : listCaches()) {
+        for (File cache : listCaches()) { // load data
             if (!cache.isFile()) {
                 Loggers.RAFT.warn("warning: encountered directory in cache dir: {}", cache.getAbsolutePath());
             }
-
             if (!StringUtils.equals(cache.getName(), encodeDatumKey(key))) {
                 continue;
             }
-
             Loggers.RAFT.info("finish loading datum, key: {} cost {} ms.", key, (System.currentTimeMillis() - start));
             return readDatum(cache, StringUtils.EMPTY);
         }
@@ -240,9 +237,7 @@ public class RaftStore implements Closeable {
             MetricsMonitor.getDiskException().increment();
             throw e;
         }
-
-        // remove old format file:
-        if (StringUtils.isNoneBlank(namespaceId)) {
+        if (StringUtils.isNoneBlank(namespaceId)) {  // remove old format file:
             if (datum.key.contains(Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER)) {
                 String oldDatumKey = datum.key.replace(Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER, StringUtils.EMPTY);
                 cacheFile = new File(cacheFileName(namespaceId, oldDatumKey));
@@ -267,13 +262,9 @@ public class RaftStore implements Closeable {
      *
      * @param datum datum
      */
-    public void delete(Datum datum) {
-
-        // datum key contains namespace info:
-        String namespaceId = KeyBuilder.getNamespace(datum.key);
-
+    public void delete(Datum datum) { // 删除缓存数据文件
+        String namespaceId = KeyBuilder.getNamespace(datum.key); // datum key contains namespace info:
         if (StringUtils.isNotBlank(namespaceId)) {
-
             File cacheFile = new File(cacheFileName(namespaceId, datum.key));
             if (cacheFile.exists() && !cacheFile.delete()) {
                 Loggers.RAFT.error("[RAFT-DELETE] failed to delete datum: {}, value: {}", datum.key, datum.value);
@@ -293,7 +284,6 @@ public class RaftStore implements Closeable {
         if (!file.exists() && !file.getParentFile().mkdirs() && !file.createNewFile()) {
             throw new IllegalStateException("failed to create meta file");
         }
-
         try (FileOutputStream outStream = new FileOutputStream(file)) {
             // write meta
             meta.setProperty("term", String.valueOf(term));

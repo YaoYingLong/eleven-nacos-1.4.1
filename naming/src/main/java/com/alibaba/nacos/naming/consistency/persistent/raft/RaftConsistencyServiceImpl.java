@@ -137,8 +137,7 @@ public class RaftConsistencyServiceImpl implements PersistentConsistencyService 
             raftCore.onPublish(datum, source);
         } catch (Exception e) {
             Loggers.RAFT.error("Raft onPut failed.", e);
-            throw new NacosException(NacosException.SERVER_ERROR,
-                    "Raft onPut failed, datum:" + datum + ", source: " + source, e);
+            throw new NacosException(NacosException.SERVER_ERROR, "Raft onPut failed, datum:" + datum + ", source: " + source, e);
         }
     }
 

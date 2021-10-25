@@ -189,7 +189,7 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
             RaftPeer peer = peers.get(maxApprovePeer); // 获取出该节点
             peer.state = RaftPeer.State.LEADER;  // 将该节点状态设置为leader节点
             if (!Objects.equals(leader, peer)) {
-                leader = peer; // 若leader节点不是改节点，将leader节点设置为该节点
+                leader = peer; // 若leader节点不是该节点，将leader节点设置为该节点
                 ApplicationUtils.publishEvent(new LeaderElectFinishedEvent(this, leader, local())); // 发布选举结果事件，RaftListener
                 Loggers.RAFT.info("{} has become the LEADER", leader.ip);
             }
@@ -203,32 +203,30 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
      * @param candidate new candidate
      * @return new leader
      */
-    public RaftPeer makeLeader(RaftPeer candidate) {
-        if (!Objects.equals(leader, candidate)) {
+    public RaftPeer makeLeader(RaftPeer candidate) { // 更新leader信息，将remote设置为新leader，更新原有leader的节点信息
+        if (!Objects.equals(leader, candidate)) { // 若leader不是candidate，则将leader设置为candidate
             leader = candidate;
-            ApplicationUtils.publishEvent(new MakeLeaderEvent(this, leader, local()));
+            ApplicationUtils.publishEvent(new MakeLeaderEvent(this, leader, local())); // 调用RaftListener的onApplicationEvent方法响应事件
             Loggers.RAFT.info("{} has become the LEADER, local: {}, leader: {}", leader.ip, JacksonUtils.toJson(local()), JacksonUtils.toJson(leader));
         }
         for (final RaftPeer peer : peers.values()) {
             Map<String, String> params = new HashMap<>(1);
-            if (!Objects.equals(peer, candidate) && peer.state == RaftPeer.State.LEADER) {
+            if (!Objects.equals(peer, candidate) && peer.state == RaftPeer.State.LEADER) { // 若存在存在旧的leader，则将旧的leader信息更新
                 try {
-                    String url = RaftCore.buildUrl(peer.ip, RaftCore.API_GET_PEER);
+                    String url = RaftCore.buildUrl(peer.ip, RaftCore.API_GET_PEER); // 调用成员的/raft/peer接口
                     HttpClient.asyncHttpGet(url, null, params, new Callback<String>() {
                         @Override
                         public void onReceive(RestResult<String> result) {
-                            if (!result.ok()) {
+                            if (!result.ok()) { // 若请求失败则将其状态置为FOLLOWER
                                 Loggers.RAFT.error("[NACOS-RAFT] get peer failed: {}, peer: {}", result.getCode(), peer.ip);
                                 peer.state = RaftPeer.State.FOLLOWER;
                                 return;
                             }
-                            update(JacksonUtils.toObj(result.getData(), RaftPeer.class));
+                            update(JacksonUtils.toObj(result.getData(), RaftPeer.class)); // 更新当前peer的信息
                         }
-
                         @Override
                         public void onError(Throwable throwable) {
                         }
-
                         @Override
                         public void onCancel() {
                         }
@@ -239,7 +237,7 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
                 }
             }
         }
-        return update(candidate);
+        return update(candidate); // 更新leader的信息
     }
 
     /**
@@ -321,8 +319,7 @@ public class RaftPeerSet extends MemberChangeListener implements Closeable {
             }
             tmpPeers.put(address, raftPeer);
         }
-        // replace raft peer set:
-        peers = tmpPeers;
+        peers = tmpPeers; // replace raft peer set:
         ready = true;
         Loggers.RAFT.info("raft peers changed: " + members);
     }

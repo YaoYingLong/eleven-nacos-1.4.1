@@ -113,14 +113,11 @@ public class RaftController {
         if (versionJudgement.allMemberIsNewVersion()) {
             throw new IllegalStateException("old raft protocol already stop");
         }
-        String entity = new String(IoUtils.tryDecompress(request.getInputStream()), StandardCharsets.UTF_8);
+        String entity = new String(IoUtils.tryDecompress(request.getInputStream()), StandardCharsets.UTF_8); // Gzip解压
         String value = URLDecoder.decode(entity, "UTF-8");
         value = URLDecoder.decode(value, "UTF-8");
-
         JsonNode json = JacksonUtils.toObj(value);
-
         RaftPeer peer = raftCore.receivedBeat(JacksonUtils.toObj(json.get("beat").asText()));
-
         return JacksonUtils.transferToJsonNode(peer);
     }
 
@@ -138,19 +135,16 @@ public class RaftController {
         }
         List<RaftPeer> peers = raftCore.getPeers();
         RaftPeer peer = null;
-
         for (RaftPeer peer1 : peers) {
             if (StringUtils.equals(peer1.ip, NetUtils.localServer())) {
                 peer = peer1;
             }
         }
-
         if (peer == null) {
             peer = new RaftPeer();
             peer.ip = NetUtils.localServer();
         }
-
-        return JacksonUtils.transferToJsonNode(peer);
+        return JacksonUtils.transferToJsonNode(peer); // 返回本节点的RaftPeer最新信息
     }
 
     /**
@@ -187,27 +181,22 @@ public class RaftController {
         response.setHeader("Content-Type", "application/json; charset=" + getAcceptEncoding(request));
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("Content-Encode", "gzip");
-
         String entity = IoUtils.toString(request.getInputStream(), "UTF-8");
         String value = URLDecoder.decode(entity, "UTF-8");
         JsonNode json = JacksonUtils.toObj(value);
-
         String key = json.get("key").asText();
         if (KeyBuilder.matchInstanceListKey(key)) {
             raftConsistencyService.put(key, JacksonUtils.toObj(json.get("value").toString(), Instances.class));
             return "ok";
         }
-
         if (KeyBuilder.matchSwitchKey(key)) {
             raftConsistencyService.put(key, JacksonUtils.toObj(json.get("value").toString(), SwitchDomain.class));
             return "ok";
         }
-
         if (KeyBuilder.matchServiceMetaKey(key)) {
             raftConsistencyService.put(key, JacksonUtils.toObj(json.get("value").toString(), Service.class));
             return "ok";
         }
-
         throw new NacosException(NacosException.INVALID_PARAM, "unknown type publish key: " + key);
     }
 
@@ -251,12 +240,10 @@ public class RaftController {
         keysString = URLDecoder.decode(keysString, "UTF-8");
         String[] keys = keysString.split(",");
         List<Datum> datums = new ArrayList<Datum>();
-
         for (String key : keys) {
             Datum datum = raftCore.getDatum(key);
             datums.add(datum);
         }
-
         return JacksonUtils.toJson(datums);
     }
 
@@ -300,16 +287,12 @@ public class RaftController {
         response.setHeader("Content-Type", "application/json; charset=" + getAcceptEncoding(request));
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("Content-Encode", "gzip");
-
         String entity = IoUtils.toString(request.getInputStream(), "UTF-8");
         String value = URLDecoder.decode(entity, "UTF-8");
-
         JsonNode jsonObject = JacksonUtils.toObj(value);
         String key = "key";
-
         RaftPeer source = JacksonUtils.toObj(jsonObject.get("source").toString(), RaftPeer.class);
         JsonNode datumJson = jsonObject.get("datum");
-
         Datum datum = null;
         if (KeyBuilder.matchInstanceListKey(datumJson.get(key).asText())) {
             datum = JacksonUtils.toObj(jsonObject.get("datum").toString(), new TypeReference<Datum<Instances>>() {
@@ -321,7 +304,6 @@ public class RaftController {
             datum = JacksonUtils.toObj(jsonObject.get("datum").toString(), new TypeReference<Datum<Service>>() {
             });
         }
-
         raftConsistencyService.onPut(datum, source);
         return "ok";
     }
