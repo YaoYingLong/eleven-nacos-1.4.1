@@ -24,13 +24,13 @@ import com.alibaba.nacos.common.utils.StringUtils;
  * @author Nacos
  */
 public class TenantUtil {
-    
+
     private static final String USER_TENANT;
-    
+
     static {
         USER_TENANT = System.getProperty("tenant.id", "");
     }
-    
+
     /**
      * Adapt the way ACM gets tenant on the cloud.
      * <p>
@@ -42,14 +42,12 @@ public class TenantUtil {
      */
     public static String getUserTenantForAcm() {
         String tmp = USER_TENANT;
-        
         if (StringUtils.isBlank(USER_TENANT)) {
             tmp = System.getProperty("acm.namespace", "");
         }
-        
         return tmp;
     }
-    
+
     /**
      * Adapt the way ANS gets tenant on the cloud.
      *
@@ -57,7 +55,7 @@ public class TenantUtil {
      */
     public static String getUserTenantForAns() {
         String tmp = USER_TENANT;
-        
+
         if (StringUtils.isBlank(USER_TENANT)) {
             tmp = System.getProperty("ans.namespace");
         }

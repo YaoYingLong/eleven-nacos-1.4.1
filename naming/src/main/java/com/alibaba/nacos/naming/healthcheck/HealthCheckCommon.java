@@ -52,21 +52,21 @@ import java.util.concurrent.TimeUnit;
 @Component
 @SuppressWarnings("PMD.ThreadPoolCreationRule")
 public class HealthCheckCommon {
-    
+
     @Autowired
     private DistroMapper distroMapper;
-    
+
     @Autowired
     private SwitchDomain switchDomain;
-    
+
     @Autowired
     private ServerMemberManager memberManager;
-    
+
     @Autowired
     private PushService pushService;
-    
+
     private static LinkedBlockingDeque<HealthCheckResult> healthCheckResults = new LinkedBlockingDeque<>(1024 * 128);
-    
+
     /**
      * Init Health check.
      */
@@ -74,13 +74,13 @@ public class HealthCheckCommon {
         GlobalExecutor.scheduleNamingHealthCheck(() -> {
             List list = Arrays.asList(healthCheckResults.toArray());
             healthCheckResults.clear();
-            
+
             Collection<Member> sameSiteServers = memberManager.allMembers();
-            
+
             if (sameSiteServers == null || sameSiteServers.size() <= 0) {
                 return;
             }
-            
+
             for (Member server : sameSiteServers) {
                 if (server.getAddress().equals(NetUtils.localServer())) {
                     continue;
@@ -91,21 +91,21 @@ public class HealthCheckCommon {
                     Loggers.SRV_LOG.debug("[HEALTH-SYNC] server: {}, healthCheckResults: {}", server,
                             JacksonUtils.toJson(list));
                 }
-                
+
                 RestResult<String> httpResult = HttpClient.httpPost(
                         "http://" + server.getAddress() + EnvUtil.getContextPath()
                                 + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/api/healthCheckResult", null, params);
-                
+
                 if (!httpResult.ok()) {
                     Loggers.EVT_LOG.warn("[HEALTH-CHECK-SYNC] failed to send result to {}, result: {}", server,
                             JacksonUtils.toJson(list));
                 }
-                
+
             }
-            
+
         }, 500, TimeUnit.MILLISECONDS);
     }
-    
+
     /**
      * Re-evaluate check responsce time.
      *
@@ -115,28 +115,22 @@ public class HealthCheckCommon {
      */
     public void reEvaluateCheckRT(long checkRT, HealthCheckTask task, SwitchDomain.HealthParams params) {
         task.setCheckRtLast(checkRT);
-        
         if (checkRT > task.getCheckRtWorst()) {
             task.setCheckRtWorst(checkRT);
         }
-        
         if (checkRT < task.getCheckRtBest()) {
             task.setCheckRtBest(checkRT);
         }
-        
         checkRT = (long) ((params.getFactor() * task.getCheckRtNormalized()) + (1 - params.getFactor()) * checkRT);
-        
         if (checkRT > params.getMax()) {
             checkRT = params.getMax();
         }
-        
         if (checkRT < params.getMin()) {
             checkRT = params.getMin();
         }
-        
         task.setCheckRtNormalized(checkRT);
     }
-    
+
     /**
      * Health check pass.
      *
@@ -146,19 +140,16 @@ public class HealthCheckCommon {
      */
     public void checkOK(Instance ip, HealthCheckTask task, String msg) {
         Cluster cluster = task.getCluster();
-        
         try {
             if (!ip.isHealthy() || !ip.isMockValid()) {
                 if (ip.getOkCount().incrementAndGet() >= switchDomain.getCheckTimes()) {
                     if (distroMapper.responsible(cluster, ip)) {
                         ip.setHealthy(true);
                         ip.setMockValid(true);
-                        
                         Service service = cluster.getService();
                         service.setLastModifiedMillis(System.currentTimeMillis());
                         pushService.serviceChanged(service);
                         addResult(new HealthCheckResult(service.getName(), ip));
-                        
                         Loggers.EVT_LOG.info("serviceName: {} {POS} {IP-ENABLED} valid: {}:{}@{}, region: {}, msg: {}",
                                 cluster.getService().getName(), ip.getIp(), ip.getPort(), cluster.getName(),
                                 UtilsAndCommons.LOCALHOST_SITE, msg);
@@ -180,11 +171,11 @@ public class HealthCheckCommon {
         } catch (Throwable t) {
             Loggers.SRV_LOG.error("[CHECK-OK] error when close check task.", t);
         }
-        
+
         ip.getFailCount().set(0);
         ip.setBeingChecked(false);
     }
-    
+
     /**
      * Health check fail, when instance check failed count more than max failed time, set unhealthy.
      *
@@ -194,20 +185,19 @@ public class HealthCheckCommon {
      */
     public void checkFail(Instance ip, HealthCheckTask task, String msg) {
         Cluster cluster = task.getCluster();
-        
         try {
             if (ip.isHealthy() || ip.isMockValid()) {
                 if (ip.getFailCount().incrementAndGet() >= switchDomain.getCheckTimes()) {
                     if (distroMapper.responsible(cluster, ip)) {
                         ip.setHealthy(false);
                         ip.setMockValid(false);
-                        
+
                         Service service = cluster.getService();
                         service.setLastModifiedMillis(System.currentTimeMillis());
                         addResult(new HealthCheckResult(service.getName(), ip));
-                        
+
                         pushService.serviceChanged(service);
-                        
+
                         Loggers.EVT_LOG
                                 .info("serviceName: {} {POS} {IP-DISABLED} invalid: {}:{}@{}, region: {}, msg: {}",
                                         cluster.getService().getName(), ip.getIp(), ip.getPort(), cluster.getName(),
@@ -218,7 +208,7 @@ public class HealthCheckCommon {
                                         cluster.getService().getName(), ip.getIp(), ip.getPort(), cluster.getName(),
                                         UtilsAndCommons.LOCALHOST_SITE, msg);
                     }
-                    
+
                 } else {
                     Loggers.EVT_LOG.info("serviceName: {} {OTHER} {IP-DISABLED} pre-invalid: {}:{}@{} in {}, msg: {}",
                             cluster.getService().getName(), ip.getIp(), ip.getPort(), cluster.getName(),
@@ -228,12 +218,12 @@ public class HealthCheckCommon {
         } catch (Throwable t) {
             Loggers.SRV_LOG.error("[CHECK-FAIL] error when close check task.", t);
         }
-        
+
         ip.getOkCount().set(0);
-        
+
         ip.setBeingChecked(false);
     }
-    
+
     /**
      * Health check fail, set instance unhealthy directly.
      *
@@ -248,13 +238,13 @@ public class HealthCheckCommon {
                 if (distroMapper.responsible(cluster, ip)) {
                     ip.setHealthy(false);
                     ip.setMockValid(false);
-                    
+
                     Service service = cluster.getService();
                     service.setLastModifiedMillis(System.currentTimeMillis());
-                    
+
                     pushService.serviceChanged(service);
                     addResult(new HealthCheckResult(service.getName(), ip));
-                    
+
                     Loggers.EVT_LOG
                             .info("serviceName: {} {POS} {IP-DISABLED} invalid-now: {}:{}@{}, region: {}, msg: {}",
                                     cluster.getService().getName(), ip.getIp(), ip.getPort(), cluster.getName(),
@@ -267,52 +257,52 @@ public class HealthCheckCommon {
                                         cluster.getService().getName(), ip.getIp(), ip.getPort(), cluster.getName(),
                                         UtilsAndCommons.LOCALHOST_SITE, msg);
                     }
-                    
+
                 }
             }
         } catch (Throwable t) {
             Loggers.SRV_LOG.error("[CHECK-FAIL-NOW] error when close check task.", t);
         }
-        
+
         ip.getOkCount().set(0);
         ip.setBeingChecked(false);
     }
-    
+
     private void addResult(HealthCheckResult result) {
-        
+
         if (!switchDomain.getIncrementalList().contains(result.getServiceName())) {
             return;
         }
-        
+
         if (!healthCheckResults.offer(result)) {
             Loggers.EVT_LOG.warn("[HEALTH-CHECK-SYNC] failed to add check result to queue, queue size: {}",
                     healthCheckResults.size());
         }
     }
-    
+
     static class HealthCheckResult {
-        
+
         private String serviceName;
-        
+
         private Instance instance;
-        
+
         public HealthCheckResult(String serviceName, Instance instance) {
             this.serviceName = serviceName;
             this.instance = instance;
         }
-        
+
         public String getServiceName() {
             return serviceName;
         }
-        
+
         public void setServiceName(String serviceName) {
             this.serviceName = serviceName;
         }
-        
+
         public Instance getInstance() {
             return instance;
         }
-        
+
         public void setInstance(Instance instance) {
             this.instance = instance;
         }

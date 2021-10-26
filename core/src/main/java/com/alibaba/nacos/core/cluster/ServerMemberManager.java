@@ -124,7 +124,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         this.port = EnvUtil.getProperty("server.port", Integer.class, 8848);
         this.localAddress = InetUtils.getSelfIP() + ":" + port;
         this.self = MemberUtil.singleParse(this.localAddress);
-        this.self.setExtendVal(MemberMetaDataConstants.VERSION, VersionUtils.version);
+        this.self.setExtendVal(MemberMetaDataConstants.VERSION, VersionUtils.version); // 初始化元数据中的nacos版本号
         serverList.put(self.getAddress(), self); // 将本机添加到服务端列表中
         // register NodeChangeEvent publisher to NotifyManager
         registerClusterEvent();

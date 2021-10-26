@@ -92,14 +92,15 @@ public final class PersistentNotifier extends Subscriber<ValueChangeEvent> {
      */
     public <T extends Record> void notify(final String key, final DataOperation action, final T value) {
         if (listenerMap.containsKey(KeyBuilder.SERVICE_META_KEY_PREFIX)) {
+            // key以com.alibaba.nacos.naming.domains.meta.或meta.开头但不以00-00---000-NACOS_SWITCH_DOMAIN-000---00-00结尾
             if (KeyBuilder.matchServiceMetaKey(key) && !KeyBuilder.matchSwitchKey(key)) {
                 for (RecordListener listener : listenerMap.get(KeyBuilder.SERVICE_META_KEY_PREFIX)) {
                     try {
                         if (action == DataOperation.CHANGE) {
-                            listener.onChange(key, value); //
+                            listener.onChange(key, value); // 调用Service的onChange方法将实例数据更新到注册表中
                         }
                         if (action == DataOperation.DELETE) {
-                            listener.onDelete(key); //
+                            listener.onDelete(key); // Service总onDelete方法是空实现
                         }
                     } catch (Throwable e) {
                         Loggers.RAFT.error("[NACOS-RAFT] error while notifying listener of key: {}", key, e);
@@ -107,19 +108,17 @@ public final class PersistentNotifier extends Subscriber<ValueChangeEvent> {
                 }
             }
         }
-
         if (!listenerMap.containsKey(key)) {
             return;
         }
-
         for (RecordListener listener : listenerMap.get(key)) {
             try {
                 if (action == DataOperation.CHANGE) {
-                    listener.onChange(key, value);
+                    listener.onChange(key, value); // 调用Service的onChange方法将实例数据更新到注册表中
                     continue;
                 }
                 if (action == DataOperation.DELETE) {
-                    listener.onDelete(key);
+                    listener.onDelete(key); // Service总onDelete方法是空实现
                 }
             } catch (Throwable e) {
                 Loggers.RAFT.error("[NACOS-RAFT] error while notifying listener of key: {}", key, e);

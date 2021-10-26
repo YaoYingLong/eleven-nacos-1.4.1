@@ -350,7 +350,7 @@ public class RaftCore implements Closeable {
             }
         }
         raftStore.updateTerm(local.term.get()); // 更新缓存文件meta.properties中选举周期
-        // 最终订阅者PersistentNotifier会受到该事件变更执行onEvent方法异步更新注册表
+        // 最终订阅者PersistentNotifier会收到该事件变更执行onEvent方法异步更新注册表
         NotifyCenter.publishEvent(ValueChangeEvent.builder().key(datum.key).action(DataOperation.CHANGE).build());
         Loggers.RAFT.info("data added/updated, key={}, term={}", datum.key, local.term);
     }

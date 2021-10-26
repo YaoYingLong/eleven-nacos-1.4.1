@@ -66,7 +66,7 @@ public class HealthCheckTask implements Runnable {
     }
 
     private void initCheckRT() {
-        // first check time delay
+        // 第一次健康检查的延迟时间，2000 + （0 ~ 5000）对0到5000进行了嵌套取随机数
         checkRtNormalized = 2000 + RandomUtils.nextInt(0, RandomUtils.nextInt(0, switchDomain.getTcpHealthParams().getMax()));
         checkRtBest = Long.MAX_VALUE;
         checkRtWorst = 0L;
@@ -76,7 +76,7 @@ public class HealthCheckTask implements Runnable {
     public void run() {
         try {
             if (distroMapper.responsible(cluster.getService().getName()) && switchDomain.isHealthCheckEnabled(cluster.getService().getName())) {
-                healthCheckProcessor.process(this);
+                healthCheckProcessor.process(this); // 注册在本机上的实例，才执行健康检查，调用TcpSuperSenseProcessor的process方法
                 if (Loggers.EVT_LOG.isDebugEnabled()) {
                     Loggers.EVT_LOG.debug("[HEALTH-CHECK] schedule health check task: {}", cluster.getService().getName());
                 }
