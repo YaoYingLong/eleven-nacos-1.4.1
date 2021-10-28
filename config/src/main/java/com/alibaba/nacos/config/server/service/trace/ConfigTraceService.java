@@ -33,35 +33,35 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 public class ConfigTraceService {
-    
+
     public static final String PERSISTENCE_EVENT_PUB = "pub";
-    
+
     public static final String PERSISTENCE_EVENT_REMOVE = "remove";
-    
+
     public static final String PERSISTENCE_EVENT_MERGE = "merge";
-    
+
     public static final String NOTIFY_EVENT_OK = "ok";
-    
+
     public static final String NOTIFY_EVENT_ERROR = "error";
-    
+
     public static final String NOTIFY_EVENT_UNHEALTH = "unhealth";
-    
+
     public static final String NOTIFY_EVENT_EXCEPTION = "exception";
-    
+
     public static final String DUMP_EVENT_OK = "ok";
-    
+
     public static final String DUMP_EVENT_REMOVE_OK = "remove-ok";
-    
+
     public static final String DUMP_EVENT_ERROR = "error";
-    
+
     public static final String PULL_EVENT_OK = "ok";
-    
+
     public static final String PULL_EVENT_NOTFOUND = "not-found";
-    
+
     public static final String PULL_EVENT_CONFLICT = "conflict";
-    
+
     public static final String PULL_EVENT_ERROR = "error";
-    
+
     /**
      * log persistence event.
      *
@@ -74,8 +74,7 @@ public class ConfigTraceService {
      * @param type             type
      * @param content          content
      */
-    public static void logPersistenceEvent(String dataId, String group, String tenant, String requestIpAppName, long ts,
-            String handleIp, String type, String content) {
+    public static void logPersistenceEvent(String dataId, String group, String tenant, String requestIpAppName, long ts, String handleIp, String type, String content) {
         if (!LogUtil.TRACE_LOG.isInfoEnabled()) {
             return;
         }
@@ -86,11 +85,9 @@ public class ConfigTraceService {
         //localIp | dataid | group | tenant | requestIpAppName | ts | handleIp | event | type | [delayed = -1] | ext
         // (md5)
         String md5 = content == null ? null : MD5Utils.md5Hex(content, Constants.ENCODE);
-        
-        LogUtil.TRACE_LOG.info("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}", InetUtils.getSelfIP(), dataId, group, tenant,
-                requestIpAppName, ts, handleIp, "persist", type, -1, md5);
+        LogUtil.TRACE_LOG.info("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}", InetUtils.getSelfIP(), dataId, group, tenant, requestIpAppName, ts, handleIp, "persist", type, -1, md5);
     }
-    
+
     /**
      * log notify event.
      *
@@ -119,7 +116,7 @@ public class ConfigTraceService {
         LogUtil.TRACE_LOG.info("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}", InetUtils.getSelfIP(), dataId, group, tenant,
                 requestIpAppName, ts, handleIp, "notify", type, delayed, targetIp);
     }
-    
+
     /**
      * log dump event.
      *
@@ -146,7 +143,7 @@ public class ConfigTraceService {
         LogUtil.TRACE_LOG.info("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}", InetUtils.getSelfIP(), dataId, group, tenant,
                 requestIpAppName, ts, handleIp, "dump", type, delayed, length);
     }
-    
+
     /**
      * log dump all event.
      *
@@ -172,7 +169,7 @@ public class ConfigTraceService {
                 .info("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}", InetUtils.getSelfIP(), dataId, group, tenant, requestIpAppName,
                         ts, handleIp, "dump-all", type, -1);
     }
-    
+
     /**
      * log pull event.
      *

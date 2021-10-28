@@ -77,13 +77,11 @@ public class ConfigServletInner {
      */
     public String doPollingConfig(HttpServletRequest request, HttpServletResponse response,
             Map<String, String> clientMd5Map, int probeRequestSize) throws IOException {
-
         // Long polling.
         if (LongPollingService.isSupportLongPolling(request)) {
             longPollingService.addLongPollingClient(request, response, clientMd5Map, probeRequestSize);
             return HttpServletResponse.SC_OK + "";
         }
-
         // Compatible with short polling logic.
         List<String> changedGroups = MD5Util.compareMd5(request, response, clientMd5Map);
 
@@ -126,38 +124,38 @@ public class ConfigServletInner {
         int lockResult = tryConfigReadLock(groupKey); // 获取配置读取锁
         final String requestIp = RequestUtil.getRemoteIp(request); // 获取请求方法IP
         boolean isBeta = false;
-        if (lockResult > 0) {
+        if (lockResult > 0) { // 这里并不是去mysql而是查询本地磁盘的缓存，修改配置需要发布ConfigDataChangeEvent事件，触发本地文件和内存更新
             FileInputStream fis = null;
             try {
                 String md5 = Constants.NULL;
                 long lastModified = 0L;
                 CacheItem cacheItem = ConfigCacheService.getContentCache(groupKey);
-                if (cacheItem != null) {
-                    if (cacheItem.isBeta()) {
-                        if (cacheItem.getIps4Beta().contains(clientIp)) {
+                if (cacheItem != null) { // 若缓存cacheItem不为空
+                    if (cacheItem.isBeta()) { // 若isBeta为true
+                        if (cacheItem.getIps4Beta().contains(clientIp)) { // ips4Beta列表中包含请求方ip
                             isBeta = true;
                         }
                     }
                     final String configType = (null != cacheItem.getType()) ? cacheItem.getType() : FileTypeEnum.TEXT.getFileType();
                     response.setHeader("Config-Type", configType);
-                    FileTypeEnum fileTypeEnum = FileTypeEnum.getFileTypeEnumByFileExtensionOrFileType(configType);
+                    FileTypeEnum fileTypeEnum = FileTypeEnum.getFileTypeEnumByFileExtensionOrFileType(configType); // 获取配置文件类型
                     String contentTypeHeader = fileTypeEnum.getContentType();
                     response.setHeader(HttpHeaderConsts.CONTENT_TYPE, contentTypeHeader);
                 }
                 File file = null;
                 ConfigInfoBase configInfoBase = null;
                 PrintWriter out = null;
-                if (isBeta) {
+                if (isBeta) { // 若isBeta为true 说明缓存cacheItem存在
                     md5 = cacheItem.getMd54Beta();
-                    lastModified = cacheItem.getLastModifiedTs4Beta();
-                    if (PropertyUtil.isDirectRead()) { // 是单例部署，获取内嵌存储
+                    lastModified = cacheItem.getLastModifiedTs4Beta(); // 最后修改时间
+                    if (PropertyUtil.isDirectRead()) { // 是单例部署，或使用内嵌存储
                         configInfoBase = persistService.findConfigInfo4Beta(dataId, group, tenant);
-                    } else {
+                    } else { // 集群部署
                         file = DiskUtil.targetBetaFile(dataId, group, tenant); // 获取到数据文件
                     }
                     response.setHeader("isBeta", "true");
-                } else {
-                    if (StringUtils.isBlank(tag)) {
+                } else { // 若isBeta为false
+                    if (StringUtils.isBlank(tag)) { // 一般tag为null
                         if (isUseTag(cacheItem, autoTag)) {
                             if (cacheItem != null) {
                                 if (cacheItem.tagMd5 != null) {
@@ -167,21 +165,21 @@ public class ConfigServletInner {
                                     lastModified = cacheItem.tagLastModifiedTs.get(autoTag);
                                 }
                             }
-                            if (PropertyUtil.isDirectRead()) { // 是单例部署，获取内嵌存储
+                            if (PropertyUtil.isDirectRead()) { // 是单例部署，或使用内嵌存储
                                 configInfoBase = persistService.findConfigInfo4Tag(dataId, group, tenant, autoTag);
-                            } else { // 获取到数据文件
-                                file = DiskUtil.targetTagFile(dataId, group, tenant, autoTag);
+                            } else {
+                                file = DiskUtil.targetTagFile(dataId, group, tenant, autoTag); // 获取到数据文件
                             }
                             response.setHeader("Vipserver-Tag", URLEncoder.encode(autoTag, StandardCharsets.UTF_8.displayName()));
                         } else {
                             md5 = cacheItem.getMd5();
                             lastModified = cacheItem.getLastModifiedTs();
-                            if (PropertyUtil.isDirectRead()) {
+                            if (PropertyUtil.isDirectRead()) { // 是单例部署，或使用内嵌存储
                                 configInfoBase = persistService.findConfigInfo(dataId, group, tenant);
                             } else {
-                                file = DiskUtil.targetFile(dataId, group, tenant);
+                                file = DiskUtil.targetFile(dataId, group, tenant); // 获取到数据文件
                             }
-                            if (configInfoBase == null && fileNotExist(file)) {
+                            if (configInfoBase == null && fileNotExist(file)) { // 若配置文件不存在
                                 // FIXME CacheItem
                                 // No longer exists. It is impossible to simply calculate the push delayed. Here, simply record it as - 1.
                                 ConfigTraceService.logPullEvent(dataId, group, tenant, requestIpApp, -1, ConfigTraceService.PULL_EVENT_NOTFOUND, -1, requestIp);
@@ -195,7 +193,7 @@ public class ConfigServletInner {
                                 return HttpServletResponse.SC_NOT_FOUND + "";
                             }
                         }
-                    } else {
+                    } else {  // tag不为null
                         if (cacheItem != null) {
                             if (cacheItem.tagMd5 != null) {
                                 md5 = cacheItem.tagMd5.get(tag);
@@ -230,13 +228,13 @@ public class ConfigServletInner {
                 response.setHeader("Pragma", "no-cache");
                 response.setDateHeader("Expires", 0);
                 response.setHeader("Cache-Control", "no-cache,no-store");
-                if (PropertyUtil.isDirectRead()) {
+                if (PropertyUtil.isDirectRead()) { // 是单例部署，或使用内嵌存储
                     response.setDateHeader("Last-Modified", lastModified);
                 } else {
                     fis = new FileInputStream(file);
                     response.setDateHeader("Last-Modified", file.lastModified());
                 }
-                if (PropertyUtil.isDirectRead()) {
+                if (PropertyUtil.isDirectRead()) { // 是单例部署，或使用内嵌存储
                     out = response.getWriter();
                     out.print(configInfoBase.getContent());
                     out.flush();
@@ -262,14 +260,13 @@ public class ConfigServletInner {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.getWriter().println("config data not exist");
             return HttpServletResponse.SC_NOT_FOUND + "";
-        } else {
+        } else { // 未获取读取数据的锁
             PULL_LOG.info("[client-get] clientIp={}, {}, get data during dump", clientIp, groupKey);
             response.setStatus(HttpServletResponse.SC_CONFLICT);
             response.getWriter().println("requested file is being modified, please try later.");
             return HttpServletResponse.SC_CONFLICT + "";
 
         }
-
         return HttpServletResponse.SC_OK + "";
     }
 

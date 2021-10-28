@@ -77,13 +77,12 @@ public class AsyncNotifyService {
                     Collection<Member> ipList = memberManager.allMembers();
                     // In fact, any type of queue here can be
                     Queue<NotifySingleTask> queue = new LinkedList<NotifySingleTask>();
-                    for (Member member : ipList) {
+                    for (Member member : ipList) { // 将变更的配置信息同步给集群其它节点
                         queue.add(new NotifySingleTask(dataId, group, tenant, tag, dumpTs, member.getAddress(), evt.isBeta));
                     }
                     ConfigExecutor.executeAsyncNotify(new AsyncTask(nacosAsyncRestTemplate, queue));
                 }
             }
-
             @Override
             public Class<? extends Event> subscribeType() {
                 return ConfigDataChangeEvent.class;
@@ -120,11 +119,10 @@ public class AsyncNotifyService {
                 if (memberManager.hasMember(targetIp)) {
                     // start the health check and there are ips that are not monitored, put them directly in the notification queue, otherwise notify
                     boolean unHealthNeedDelay = memberManager.isUnHealth(targetIp);
-                    if (unHealthNeedDelay) {
+                    if (unHealthNeedDelay) { // 若成员不健康
                         // target ip is unhealthy, then put it in the notification list
                         ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                                task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH,
-                                0, task.target);
+                                task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH, 0, task.target);
                         // get delay time and set fail count to the task
                         asyncTaskExecute(task);
                     } else {
@@ -173,21 +171,15 @@ public class AsyncNotifyService {
                 ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
                         task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_ERROR, delayed,
                         task.target);
-
                 //get delay time and set fail count to the task
-                asyncTaskExecute(task);
-
-                LogUtil.NOTIFY_LOG
-                        .error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(),
-                                task.getGroup(), task.getLastModified());
-
+                asyncTaskExecute(task); // 若失败则延时发送
+                LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(), task.getGroup(), task.getLastModified());
                 MetricsMonitor.getConfigNotifyException().increment();
             }
         }
 
         @Override
         public void onError(Throwable ex) {
-
             long delayed = System.currentTimeMillis() - task.getLastModified();
             LOGGER.error("[notify-exception] target:{} dataId:{} group:{} ts:{} ex:{}", task.target, task.getDataId(),
                     task.getGroup(), task.getLastModified(), ex.toString());
@@ -226,12 +218,9 @@ public class AsyncNotifyService {
 
         private boolean isBeta;
 
-        private static final String URL_PATTERN =
-                "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH + "/dataChange" + "?dataId={2}&group={3}";
+        private static final String URL_PATTERN = "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH + "/dataChange" + "?dataId={2}&group={3}";
 
-        private static final String URL_PATTERN_TENANT =
-                "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH + "/dataChange"
-                        + "?dataId={2}&group={3}&tenant={4}";
+        private static final String URL_PATTERN_TENANT = "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH + "/dataChange?dataId={2}&group={3}&tenant={4}";
 
         private int failCount;
 
@@ -244,8 +233,7 @@ public class AsyncNotifyService {
             this(dataId, group, tenant, null, lastModified, target, isBeta);
         }
 
-        public NotifySingleTask(String dataId, String group, String tenant, String tag, long lastModified,
-                String target, boolean isBeta) {
+        public NotifySingleTask(String dataId, String group, String tenant, String tag, long lastModified, String target, boolean isBeta) {
             super(dataId, group, tenant, lastModified);
             this.target = target;
             this.isBeta = isBeta;
@@ -258,8 +246,7 @@ public class AsyncNotifyService {
             if (StringUtils.isBlank(tenant)) {
                 this.url = MessageFormat.format(URL_PATTERN, target, EnvUtil.getContextPath(), dataId, group);
             } else {
-                this.url = MessageFormat
-                        .format(URL_PATTERN_TENANT, target, EnvUtil.getContextPath(), dataId, group, tenant);
+                this.url = MessageFormat.format(URL_PATTERN_TENANT, target, EnvUtil.getContextPath(), dataId, group, tenant);
             }
             if (StringUtils.isNotEmpty(tag)) {
                 url = url + "&tag=" + tag;

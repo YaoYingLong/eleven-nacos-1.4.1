@@ -131,8 +131,8 @@ public class ConfigController {
             @RequestParam(value = "effect", required = false) String effect,
             @RequestParam(value = "type", required = false) String type,
             @RequestParam(value = "schema", required = false) String schema) throws NacosException {
-
-        final String srcIp = RequestUtil.getRemoteIp(request);
+        // 用户通过nacos-console控制界面修改了配置，点击发布调用该接口
+        final String srcIp = RequestUtil.getRemoteIp(request); // 获取远程调用者IP
         final String requestIpApp = RequestUtil.getAppName(request);
         srcUser = RequestUtil.getSrcUserName(request);
         //check type
@@ -151,36 +151,31 @@ public class ConfigController {
         MapUtils.putIfValNoNull(configAdvanceInfo, "type", type);
         MapUtils.putIfValNoNull(configAdvanceInfo, "schema", schema);
         ParamUtils.checkParam(configAdvanceInfo);
-
         if (AggrWhitelist.isAggrDataId(dataId)) {
-            LOGGER.warn("[aggr-conflict] {} attemp to publish single data, {}, {}", RequestUtil.getRemoteIp(request),
-                    dataId, group);
+            LOGGER.warn("[aggr-conflict] {} attemp to publish single data, {}, {}", RequestUtil.getRemoteIp(request), dataId, group);
             throw new NacosException(NacosException.NO_RIGHT, "dataId:" + dataId + " is aggr");
         }
-
         final Timestamp time = TimeUtils.getCurrentTime();
         String betaIps = request.getHeader("betaIps");
         ConfigInfo configInfo = new ConfigInfo(dataId, group, tenant, appName, content);
         configInfo.setType(type);
         if (StringUtils.isBlank(betaIps)) {
             if (StringUtils.isBlank(tag)) {
-                persistService.insertOrUpdate(srcIp, srcUser, configInfo, time, configAdvanceInfo, true);
-                ConfigChangePublisher
-                        .notifyConfigChange(new ConfigDataChangeEvent(false, dataId, group, tenant, time.getTime()));
+                persistService.insertOrUpdate(srcIp, srcUser, configInfo, time, configAdvanceInfo, true); // 持久化数据到MySQL
+                // ConfigDataChangeEvent事件被订阅者AsyncNotifyService感知
+                ConfigChangePublisher.notifyConfigChange(new ConfigDataChangeEvent(false, dataId, group, tenant, time.getTime()));
             } else {
-                persistService.insertOrUpdateTag(configInfo, tag, srcIp, srcUser, time, true);
-                ConfigChangePublisher.notifyConfigChange(
-                        new ConfigDataChangeEvent(false, dataId, group, tenant, tag, time.getTime()));
+                persistService.insertOrUpdateTag(configInfo, tag, srcIp, srcUser, time, true); // 持久化数据到MySQL
+                // ConfigDataChangeEvent事件被订阅者AsyncNotifyService感知
+                ConfigChangePublisher.notifyConfigChange(new ConfigDataChangeEvent(false, dataId, group, tenant, tag, time.getTime()));
             }
         } else {
             // beta publish
             persistService.insertOrUpdateBeta(configInfo, betaIps, srcIp, srcUser, time, true);
-            ConfigChangePublisher
-                    .notifyConfigChange(new ConfigDataChangeEvent(true, dataId, group, tenant, time.getTime()));
+            // ConfigDataChangeEvent事件被订阅者AsyncNotifyService感知
+            ConfigChangePublisher.notifyConfigChange(new ConfigDataChangeEvent(true, dataId, group, tenant, time.getTime()));
         }
-        ConfigTraceService
-                .logPersistenceEvent(dataId, group, tenant, requestIpApp, time.getTime(), InetUtils.getSelfIP(),
-                        ConfigTraceService.PERSISTENCE_EVENT_PUB, content);
+        ConfigTraceService.logPersistenceEvent(dataId, group, tenant, requestIpApp, time.getTime(), InetUtils.getSelfIP(), ConfigTraceService.PERSISTENCE_EVENT_PUB, content);
         return true;
     }
 
