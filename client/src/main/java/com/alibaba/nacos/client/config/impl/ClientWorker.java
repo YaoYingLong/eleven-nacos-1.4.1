@@ -256,9 +256,8 @@ public class ClientWorker implements Closeable {
     public String[] getServerConfig(String dataId, String group, String tenant, long readTimeout) throws NacosException {
         String[] ct = new String[2];
         if (StringUtils.isBlank(group)) {
-            group = Constants.DEFAULT_GROUP;
+            group = Constants.DEFAULT_GROUP; // 若group为空则设置为默认值DEFAULT_GROUP
         }
-
         HttpRestResult<String> result = null;
         try {
             Map<String, String> params = new HashMap<String, String>(3);
@@ -278,7 +277,7 @@ public class ClientWorker implements Closeable {
             throw new NacosException(NacosException.SERVER_ERROR, ex);
         }
         switch (result.getCode()) {
-            case HttpURLConnection.HTTP_OK:
+            case HttpURLConnection.HTTP_OK: // 保存结果到本地文件中
                 LocalConfigInfoProcessor.saveSnapshot(agent.getName(), dataId, group, tenant, result.getData());
                 ct[0] = result.getData();
                 if (result.getHeader().getValue(CONFIG_TYPE) != null) {

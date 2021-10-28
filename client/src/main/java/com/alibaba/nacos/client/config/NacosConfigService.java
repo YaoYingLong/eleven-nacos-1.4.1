@@ -99,8 +99,7 @@ public class NacosConfigService implements ConfigService {
     }
 
     @Override
-    public String getConfigAndSignListener(String dataId, String group, long timeoutMs, Listener listener)
-            throws NacosException {
+    public String getConfigAndSignListener(String dataId, String group, long timeoutMs, Listener listener) throws NacosException {
         String content = getConfig(dataId, group, timeoutMs);
         worker.addTenantListenersWithContent(dataId, group, content, Arrays.asList(listener));
         return content;
@@ -132,44 +131,35 @@ public class NacosConfigService implements ConfigService {
     }
 
     private String getConfigInner(String tenant, String dataId, String group, long timeoutMs) throws NacosException {
-        group = null2defaultGroup(group);
-        ParamUtils.checkKeyParam(dataId, group);
+        group = null2defaultGroup(group); // 若group为空，则设置为DEFAULT_GROUP
+        ParamUtils.checkKeyParam(dataId, group); // 校验dataId和group是否合法
         ConfigResponse cr = new ConfigResponse();
-
         cr.setDataId(dataId);
-        cr.setTenant(tenant);
+        cr.setTenant(tenant); // namespace
         cr.setGroup(group);
-
         // 优先使用本地配置
         String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
-        if (content != null) {
-            LOGGER.warn("[{}] [get-config] get failover ok, dataId={}, group={}, tenant={}, config={}", agent.getName(),
-                    dataId, group, tenant, ContentUtils.truncateContent(content));
+        if (content != null) { // 若从本地文件中读取到配置
+            LOGGER.warn("[{}] [get-config] get failover ok, dataId={}, group={}, tenant={}, config={}", agent.getName(), dataId, group, tenant, ContentUtils.truncateContent(content));
             cr.setContent(content);
             configFilterChainManager.doFilter(null, cr);
             content = cr.getContent();
             return content;
         }
-
-        try {
+        try { // 若未获取到配置信息，则远程调用配置中心获取配置信息
             String[] ct = worker.getServerConfig(dataId, group, tenant, timeoutMs);
             cr.setContent(ct[0]);
-
             configFilterChainManager.doFilter(null, cr);
             content = cr.getContent();
-
             return content;
         } catch (NacosException ioe) {
             if (NacosException.NO_RIGHT == ioe.getErrCode()) {
                 throw ioe;
             }
-            LOGGER.warn("[{}] [get-config] get from server error, dataId={}, group={}, tenant={}, msg={}",
-                    agent.getName(), dataId, group, tenant, ioe.toString());
+            LOGGER.warn("[{}] [get-config] get from server error, dataId={}, group={}, tenant={}, msg={}", agent.getName(), dataId, group, tenant, ioe.toString());
         }
-
-        LOGGER.warn("[{}] [get-config] get snapshot ok, dataId={}, group={}, tenant={}, config={}", agent.getName(),
-                dataId, group, tenant, ContentUtils.truncateContent(content));
-        content = LocalConfigInfoProcessor.getSnapshot(agent.getName(), dataId, group, tenant);
+        LOGGER.warn("[{}] [get-config] get snapshot ok, dataId={}, group={}, tenant={}, config={}", agent.getName(), dataId, group, tenant, ContentUtils.truncateContent(content));
+        content = LocalConfigInfoProcessor.getSnapshot(agent.getName(), dataId, group, tenant); // 若请求远程失败则从本地缓存文件获取数据
         cr.setContent(content);
         configFilterChainManager.doFilter(null, cr);
         content = cr.getContent();
