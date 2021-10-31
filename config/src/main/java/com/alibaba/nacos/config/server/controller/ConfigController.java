@@ -295,11 +295,11 @@ public class ConfigController {
 
     /**
      * The client listens for configuration changes.
+     * 轮训接口，用于处理长连接
      */
     @PostMapping("/listener")
     @Secured(action = ActionTypes.READ, parser = ConfigResourceParser.class)
-    public void listener(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+    public void listener(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         request.setAttribute("org.apache.catalina.ASYNC_SUPPORTED", true);
         String probeModify = request.getParameter("Listening-Configs");
         if (StringUtils.isBlank(probeModify)) {

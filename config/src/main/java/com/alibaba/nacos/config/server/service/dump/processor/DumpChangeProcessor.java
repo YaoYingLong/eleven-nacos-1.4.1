@@ -38,14 +38,14 @@ import java.util.List;
  * @date 2020/7/5 12:19 PM
  */
 public class DumpChangeProcessor implements NacosTaskProcessor {
-    
+
     public DumpChangeProcessor(DumpService dumpService, Timestamp startTime, Timestamp endTime) {
         this.dumpService = dumpService;
         this.persistService = dumpService.getPersistService();
         this.startTime = startTime;
         this.endTime = endTime;
     }
-    
+
     @Override
     public boolean process(NacosTask task) {
         LogUtil.DEFAULT_LOG.warn("quick start; startTime:{},endTime:{}", startTime, endTime);
@@ -59,46 +59,42 @@ public class DumpChangeProcessor implements NacosTaskProcessor {
         }
         long endUpdateMd5 = System.currentTimeMillis();
         LogUtil.DEFAULT_LOG.warn("updateMd5 done,cost:{}", endUpdateMd5 - startUpdateMd5);
-        
+
         LogUtil.DEFAULT_LOG.warn("deletedConfig start");
         long startDeletedConfigTime = System.currentTimeMillis();
         List<ConfigInfo> configDeleted = persistService.findDeletedConfig(startTime, endTime);
         LogUtil.DEFAULT_LOG.warn("deletedConfig count:{}", configDeleted.size());
         for (ConfigInfo configInfo : configDeleted) {
-            if (persistService.findConfigInfo(configInfo.getDataId(), configInfo.getGroup(), configInfo.getTenant())
-                    == null) {
+            if (persistService.findConfigInfo(configInfo.getDataId(), configInfo.getGroup(), configInfo.getTenant()) == null) {
                 ConfigCacheService.remove(configInfo.getDataId(), configInfo.getGroup(), configInfo.getTenant());
             }
         }
         long endDeletedConfigTime = System.currentTimeMillis();
         LogUtil.DEFAULT_LOG.warn("deletedConfig done,cost:{}", endDeletedConfigTime - startDeletedConfigTime);
-        
+
         LogUtil.DEFAULT_LOG.warn("changeConfig start");
         final long startChangeConfigTime = System.currentTimeMillis();
         List<ConfigInfoWrapper> changeConfigs = persistService.findChangeConfig(startTime, endTime);
         LogUtil.DEFAULT_LOG.warn("changeConfig count:{}", changeConfigs.size());
         for (ConfigInfoWrapper cf : changeConfigs) {
-            boolean result = ConfigCacheService
-                    .dumpChange(cf.getDataId(), cf.getGroup(), cf.getTenant(), cf.getContent(), cf.getLastModified());
+            boolean result = ConfigCacheService.dumpChange(cf.getDataId(), cf.getGroup(), cf.getTenant(), cf.getContent(), cf.getLastModified());
             final String content = cf.getContent();
             final String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
-            LogUtil.DEFAULT_LOG.info("[dump-change-ok] {}, {}, length={}, md5={}",
-                    new Object[] {GroupKey2.getKey(cf.getDataId(), cf.getGroup()), cf.getLastModified(),
-                            content.length(), md5});
+            LogUtil.DEFAULT_LOG.info("[dump-change-ok] {}, {}, length={}, md5={}", new Object[] {GroupKey2.getKey(cf.getDataId(), cf.getGroup()), cf.getLastModified(), content.length(), md5});
         }
         ConfigCacheService.reloadConfig();
         long endChangeConfigTime = System.currentTimeMillis();
         LogUtil.DEFAULT_LOG.warn("changeConfig done,cost:{}", endChangeConfigTime - startChangeConfigTime);
         return true;
     }
-    
+
     // =====================
-    
+
     final DumpService dumpService;
-    
+
     final PersistService persistService;
-    
+
     final Timestamp startTime;
-    
+
     final Timestamp endTime;
 }

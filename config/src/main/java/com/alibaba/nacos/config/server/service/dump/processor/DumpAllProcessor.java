@@ -65,14 +65,11 @@ public class DumpAllProcessor implements NacosTaskProcessor {
                     if (cf.getDataId().equals(SwitchService.SWITCH_META_DATAID)) {
                         SwitchService.load(cf.getContent());
                     }
-                    // 将数据写入磁盘
+                    // 将数据写入磁盘，缓存配置信息的md5到内存中，并发布LocalDataChangeEvent
                     boolean result = ConfigCacheService.dump(cf.getDataId(), cf.getGroup(), cf.getTenant(), cf.getContent(), cf.getLastModified(), cf.getType());
-
                     final String content = cf.getContent();
                     final String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
-                    LogUtil.DUMP_LOG.info("[dump-all-ok] {}, {}, length={}, md5={}",
-                            GroupKey2.getKey(cf.getDataId(), cf.getGroup()), cf.getLastModified(), content.length(),
-                            md5);
+                    LogUtil.DUMP_LOG.info("[dump-all-ok] {}, {}, length={}, md5={}", GroupKey2.getKey(cf.getDataId(), cf.getGroup()), cf.getLastModified(), content.length(), md5);
                 }
                 DEFAULT_LOG.info("[all-dump] {} / {}", lastMaxId, currentMaxId);
             } else {

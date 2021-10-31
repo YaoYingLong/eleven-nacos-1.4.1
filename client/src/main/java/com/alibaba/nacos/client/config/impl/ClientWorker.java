@@ -109,11 +109,12 @@ public class ClientWorker implements Closeable {
      * @param listeners listeners
      * @throws NacosException nacos exception
      */
-    public void addTenantListeners(String dataId, String group, List<? extends Listener> listeners)
-            throws NacosException {
+    public void addTenantListeners(String dataId, String group, List<? extends Listener> listeners) throws NacosException {
+        // 被NacosConfigService的addListener方法调用，
         group = null2defaultGroup(group);
         String tenant = agent.getTenant();
         CacheData cache = addCacheDataIfAbsent(dataId, group, tenant);
+        // 这里的Listener是在NacosContextRefresher中onApplicationEvent中监听ApplicationReadyEvent事件时为每一个dataId注册了一个AbstractSharedListener监听器
         for (Listener listener : listeners) {
             cache.addListener(listener);
         }
@@ -308,9 +309,9 @@ public class ClientWorker implements Closeable {
         final String dataId = cacheData.dataId;
         final String group = cacheData.group;
         final String tenant = cacheData.tenant;
-        File path = LocalConfigInfoProcessor.getFailoverFile(agent.getName(), dataId, group, tenant);
-        if (!cacheData.isUseLocalConfigInfo() && path.exists()) {
-            String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
+        File path = LocalConfigInfoProcessor.getFailoverFile(agent.getName(), dataId, group, tenant); // 获取本地缓存的配置文件
+        if (!cacheData.isUseLocalConfigInfo() && path.exists()) {  // isUseLocalConfig默认为false
+            String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant); // 读取本地缓存的配置文件内容
             final String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
             cacheData.setUseLocalConfigInfo(true);
             cacheData.setLocalConfigInfoVersion(path.lastModified());
@@ -324,7 +325,7 @@ public class ClientWorker implements Closeable {
             LOGGER.warn("[{}] [failover-change] failover file deleted. dataId={}, group={}, tenant={}", agent.getName(), dataId, group, tenant);
             return;
         }
-        // When it changed.
+        // When it changed. 当本地缓存的配置文件最后修改时间和缓存中的时间不一致，说明文件被更新了，重新从缓存文件中加载数据到缓存中
         if (cacheData.isUseLocalConfigInfo() && path.exists() && cacheData.getLocalConfigInfoVersion() != path.lastModified()) {
             String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
             final String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
@@ -346,7 +347,7 @@ public class ClientWorker implements Closeable {
         // Dispatch taskes. cacheMap中缓存着需要刷新的配置，将cacheMap中的数量以3000分一个组，分别创建一个LongPollingRunnable用来监听配置更新
         int listenerSize = cacheMap.size();
         // Round up the longingTaskCount.
-        int longingTaskCount = (int) Math.ceil(listenerSize / ParamUtil.getPerTaskConfigSize());
+        int longingTaskCount = (int) Math.ceil(listenerSize / ParamUtil.getPerTaskConfigSize()); // perTaskConfigSize默认为3000
         if (longingTaskCount > currentLongingTaskCount) {
             for (int i = (int) currentLongingTaskCount; i < longingTaskCount; i++) {
                 // The task list is no order.So it maybe has issues when changing.
@@ -370,13 +371,13 @@ public class ClientWorker implements Closeable {
             if (!cacheData.isUseLocalConfigInfo()) {
                 sb.append(cacheData.dataId).append(WORD_SEPARATOR);
                 sb.append(cacheData.group).append(WORD_SEPARATOR);
-                if (StringUtils.isBlank(cacheData.tenant)) {
+                if (StringUtils.isBlank(cacheData.tenant)) { // 若不存在namespace
                     sb.append(cacheData.getMd5()).append(LINE_SEPARATOR);
                 } else {
                     sb.append(cacheData.getMd5()).append(WORD_SEPARATOR);
                     sb.append(cacheData.getTenant()).append(LINE_SEPARATOR);
                 }
-                if (cacheData.isInitializing()) {
+                if (cacheData.isInitializing()) { // isInitializing默认为true
                     // It updates when cacheData occours in cacheMap by first time.
                     inInitializingCacheList.add(GroupKey.getKeyTenant(cacheData.dataId, cacheData.group, cacheData.tenant));
                 }
@@ -396,15 +397,15 @@ public class ClientWorker implements Closeable {
      */
     List<String> checkUpdateConfigStr(String probeUpdateString, boolean isInitializingCacheList) throws Exception {
         Map<String, String> params = new HashMap<String, String>(2);
-        params.put(Constants.PROBE_MODIFY_REQUEST, probeUpdateString);
+        params.put(Constants.PROBE_MODIFY_REQUEST, probeUpdateString); // Listening-Configs
         Map<String, String> headers = new HashMap<String, String>(2);
-        headers.put("Long-Pulling-Timeout", "" + timeout); // timeout默认为30000ms
+        headers.put("Long-Pulling-Timeout", "" + timeout); // timeout默认为30000ms即30s
         // told server do not hang me up if new initializing cacheData added in
         if (isInitializingCacheList) {
             headers.put("Long-Pulling-Timeout-No-Hangup", "true");
         }
         if (StringUtils.isBlank(probeUpdateString)) {
-            return Collections.emptyList();
+            return Collections.emptyList(); // 若没有数据则直接返回
         }
         try {
             // In order to prevent the server from handling the delay of the client's long task,
@@ -414,7 +415,7 @@ public class ClientWorker implements Closeable {
             HttpRestResult<String> result = agent.httpPost(Constants.CONFIG_CONTROLLER_PATH + "/listener", headers, params, agent.getEncode(), readTimeoutMs);
             if (result.ok()) {
                 setHealthServer(true);
-                return parseUpdateDataIdResponse(result.getData());
+                return parseUpdateDataIdResponse(result.getData()); // 解析服务端返回的数据
             } else {
                 setHealthServer(false);
                 LOGGER.error("[{}] [check-update] get changed dataId error, code: {}", agent.getName(), result.getCode());
@@ -516,6 +517,13 @@ public class ClientWorker implements Closeable {
         LOGGER.info("{} do shutdown stop", className);
     }
 
+    /**
+     * 长轮训主要有4个步骤：
+     * 1.检查本地配置，若存在本地配置，且与缓存中的本地配置版本不一致，把本地配置内容更新到缓存中，并触发事件
+     * 2.向Nacos Server发送长连接，30s超时，Nacos Server会返回变化的dataIds
+     * 3.根据变化的dataId，从服务端拉取最新的配置内容，并更新本地快照和缓存
+     * 4.对有变化的配置处罚监听事件类处理
+     */
     class LongPollingRunnable implements Runnable {
         private final int taskId;
         public LongPollingRunnable(int taskId) {
@@ -531,9 +539,9 @@ public class ClientWorker implements Closeable {
                     if (cacheData.getTaskId() == taskId) {
                         cacheDatas.add(cacheData);
                         try {
-                            checkLocalConfig(cacheData); // 容错配置，用于检测本地的配置
+                            checkLocalConfig(cacheData); // 容错配置，用于检测本地的配置，若本地配置更新则更新缓存
                             if (cacheData.isUseLocalConfigInfo()) {
-                                cacheData.checkListenerMd5();
+                                cacheData.checkListenerMd5(); // 对于变化的配置调用对应的监听器去处理
                             }
                         } catch (Exception e) {
                             LOGGER.error("get local config info error", e);
@@ -545,7 +553,7 @@ public class ClientWorker implements Closeable {
                 if (!CollectionUtils.isEmpty(changedGroupKeys)) {
                     LOGGER.info("get changedGroupKeys:" + changedGroupKeys);
                 }
-                for (String groupKey : changedGroupKeys) {
+                for (String groupKey : changedGroupKeys) { // 遍历变更列表
                     String[] key = GroupKey.parseKey(groupKey);
                     String dataId = key[0];
                     String group = key[1];
@@ -556,7 +564,7 @@ public class ClientWorker implements Closeable {
                     try { // 根据变化的dataId调用Nacos Config服务端获取配置信息，并更新本地快照
                         String[] ct = getServerConfig(dataId, group, tenant, 3000L);
                         CacheData cache = cacheMap.get(GroupKey.getKeyTenant(dataId, group, tenant));
-                        cache.setContent(ct[0]);
+                        cache.setContent(ct[0]); // 更新缓存数据
                         if (null != ct[1]) {
                             cache.setType(ct[1]);
                         }
@@ -568,7 +576,7 @@ public class ClientWorker implements Closeable {
                 }
                 for (CacheData cacheData : cacheDatas) {
                     if (!cacheData.isInitializing() || inInitializingCacheList.contains(GroupKey.getKeyTenant(cacheData.dataId, cacheData.group, cacheData.tenant))) {
-                        cacheData.checkListenerMd5();
+                        cacheData.checkListenerMd5(); // 对于变化的配置调用对应的监听器去处理
                         cacheData.setInitializing(false);
                     }
                 }

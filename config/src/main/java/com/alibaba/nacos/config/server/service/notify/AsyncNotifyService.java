@@ -77,7 +77,7 @@ public class AsyncNotifyService {
                     Collection<Member> ipList = memberManager.allMembers();
                     // In fact, any type of queue here can be
                     Queue<NotifySingleTask> queue = new LinkedList<NotifySingleTask>();
-                    for (Member member : ipList) { // 将变更的配置信息同步给集群其它节点
+                    for (Member member : ipList) { // 将变更的配置信息同步给集群其它节点，包括自己
                         queue.add(new NotifySingleTask(dataId, group, tenant, tag, dumpTs, member.getAddress(), evt.isBeta));
                     }
                     ConfigExecutor.executeAsyncNotify(new AsyncTask(nacosAsyncRestTemplate, queue));
@@ -112,7 +112,7 @@ public class AsyncNotifyService {
             executeAsyncInvoke();
         }
 
-        private void executeAsyncInvoke() {
+        private void executeAsyncInvoke() { // 将更变数据通过调用服务端成员的/v1/cs/communication/dataChange接口同步给对方
             while (!queue.isEmpty()) {
                 NotifySingleTask task = queue.poll();
                 String targetIp = task.getTargetIP();
@@ -121,8 +121,7 @@ public class AsyncNotifyService {
                     boolean unHealthNeedDelay = memberManager.isUnHealth(targetIp);
                     if (unHealthNeedDelay) { // 若成员不健康
                         // target ip is unhealthy, then put it in the notification list
-                        ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                                task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH, 0, task.target);
+                        ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null, task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH, 0, task.target);
                         // get delay time and set fail count to the task
                         asyncTaskExecute(task);
                     } else {
@@ -228,8 +227,7 @@ public class AsyncNotifyService {
             this(dataId, group, tenant, lastModified, target, false);
         }
 
-        public NotifySingleTask(String dataId, String group, String tenant, long lastModified, String target,
-                boolean isBeta) {
+        public NotifySingleTask(String dataId, String group, String tenant, long lastModified, String target, boolean isBeta) {
             this(dataId, group, tenant, null, lastModified, target, isBeta);
         }
 

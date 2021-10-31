@@ -41,26 +41,25 @@ import javax.servlet.http.HttpServletResponse;
 @RestController
 @RequestMapping(Constants.COMMUNICATION_CONTROLLER_PATH)
 public class CommunicationController {
-    
+
     private final DumpService dumpService;
-    
+
     private final LongPollingService longPollingService;
-    
+
     private String trueStr = "true";
-    
+
     @Autowired
     public CommunicationController(DumpService dumpService, LongPollingService longPollingService) {
         this.dumpService = dumpService;
         this.longPollingService = longPollingService;
     }
-    
+
     /**
      * Notify the change of config information.
      *
      */
     @GetMapping("/dataChange")
-    public Boolean notifyConfigInfo(HttpServletRequest request, @RequestParam("dataId") String dataId,
-            @RequestParam("group") String group,
+    public Boolean notifyConfigInfo(HttpServletRequest request, @RequestParam("dataId") String dataId, @RequestParam("group") String group,
             @RequestParam(value = "tenant", required = false, defaultValue = StringUtils.EMPTY) String tenant,
             @RequestParam(value = "tag", required = false) String tag) {
         dataId = dataId.trim();
@@ -76,7 +75,7 @@ public class CommunicationController {
         }
         return true;
     }
-    
+
     /**
      * Get client config information of subscriber in local machine.
      *
@@ -87,7 +86,7 @@ public class CommunicationController {
         group = StringUtils.isBlank(group) ? Constants.DEFAULT_GROUP : group;
         return longPollingService.getCollectSubscribleInfo(dataId, group, tenant);
     }
-    
+
     /**
      * Get client config listener lists of subscriber in local machine.
      *

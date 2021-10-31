@@ -242,26 +242,23 @@ public class LongPollingService {
         String noHangUpFlag = req.getHeader(LongPollingService.LONG_POLLING_NO_HANG_UP_HEADER);
         String appName = req.getHeader(RequestUtil.CLIENT_APPNAME_HEADER);
         String tag = req.getHeader("Vipserver-Tag");
-        int delayTime = SwitchService.getSwitchInteger(SwitchService.FIXED_DELAY_TIME, 500);
-
+        // 服务端这边最多处理时长为29.5s，需留0.5s来返回，以免客户端超时
+        int delayTime = SwitchService.getSwitchInteger(SwitchService.FIXED_DELAY_TIME, 500); // delayTime默认为500
         // Add delay time for LoadBalance, and one response is returned 500 ms in advance to avoid client timeout.
-        long timeout = Math.max(10000, Long.parseLong(str) - delayTime);
-        if (isFixedPolling()) {
+        long timeout = Math.max(10000, Long.parseLong(str) - delayTime); // timeout默认为 30000 - 500 = 29500
+        if (isFixedPolling()) { // 默认为false
             timeout = Math.max(10000, getFixedPollingInterval());
             // Do nothing but set fix polling timeout.
         } else {
             long start = System.currentTimeMillis();
+            // 遍历从缓存中获取数据比较缓存内容的的MD5值是否相等, 返回变更列表
             List<String> changedGroups = MD5Util.compareMd5(req, rsp, clientMd5Map);
             if (changedGroups.size() > 0) {
-                generateResponse(req, rsp, changedGroups);
-                LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}|{}", System.currentTimeMillis() - start, "instant",
-                        RequestUtil.getRemoteIp(req), "polling", clientMd5Map.size(), probeRequestSize,
-                        changedGroups.size());
+                generateResponse(req, rsp, changedGroups); // 若有MD5不一致则生成响应信息直接返回
+                LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}|{}", System.currentTimeMillis() - start, "instant", RequestUtil.getRemoteIp(req), "polling", clientMd5Map.size(), probeRequestSize, changedGroups.size());
                 return;
             } else if (noHangUpFlag != null && noHangUpFlag.equalsIgnoreCase(TRUE_STR)) {
-                LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}|{}", System.currentTimeMillis() - start, "nohangup",
-                        RequestUtil.getRemoteIp(req), "polling", clientMd5Map.size(), probeRequestSize,
-                        changedGroups.size());
+                LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}|{}", System.currentTimeMillis() - start, "nohangup", RequestUtil.getRemoteIp(req), "polling", clientMd5Map.size(), probeRequestSize, changedGroups.size());
                 return;
             }
         }
@@ -331,7 +328,7 @@ public class LongPollingService {
                         getRetainIps().put(clientSub.ip, System.currentTimeMillis());
                         iter.remove(); // Delete subscribers' relationships.
                         LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}|{}", (System.currentTimeMillis() - changeTime), "in-advance", RequestUtil.getRemoteIp((HttpServletRequest) clientSub.asyncContext.getRequest()), "polling", clientSub.clientMd5Map.size(), clientSub.probeRequestSize, groupKey);
-                        clientSub.sendResponse(Arrays.asList(groupKey)); // 响应配置发送变化的key
+                        clientSub.sendResponse(Arrays.asList(groupKey)); // 响应配置发送变化的key，调用长连接中的sendResponse方法给客户响应数据
                     }
                 }
             } catch (Throwable t) {
@@ -372,20 +369,21 @@ public class LongPollingService {
     class ClientLongPolling implements Runnable {
         @Override
         public void run() {
-            asyncTimeoutFuture = ConfigExecutor.scheduleLongPolling(new Runnable() {
+            asyncTimeoutFuture = ConfigExecutor.scheduleLongPolling(new Runnable() { // 1.创建一个调度任务，任务的延迟时间为29.5s
                 @Override
-                public void run() {
+                public void run() { // 执行长链接任务，延迟29.5s后执行
                     try {
                         getRetainIps().put(ClientLongPolling.this.ip, System.currentTimeMillis());
                         // Delete subsciber's relations.
-                        allSubs.remove(ClientLongPolling.this);
+                        allSubs.remove(ClientLongPolling.this); // 3.从队列中移除当前任务
                         if (isFixedPolling()) {
                             LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}", (System.currentTimeMillis() - createTime), "fix", RequestUtil.getRemoteIp((HttpServletRequest) asyncContext.getRequest()), "polling", clientMd5Map.size(), probeRequestSize);
+                            // 从服务端本机上获取保存的对应客户端请求的groupKeys，检查是否发生变更，并将变更结果返回给客户端
                             List<String> changedGroups = MD5Util.compareMd5((HttpServletRequest) asyncContext.getRequest(), (HttpServletResponse) asyncContext.getResponse(), clientMd5Map);
                             if (changedGroups.size() > 0) {
-                                sendResponse(changedGroups);
+                                sendResponse(changedGroups); // 有变更则返回变更列表
                             } else {
-                                sendResponse(null);
+                                sendResponse(null); // 若无变更则返回null
                             }
                         } else {
                             LogUtil.CLIENT_LOG.info("{}|{}|{}|{}|{}|{}", (System.currentTimeMillis() - createTime), "timeout", RequestUtil.getRemoteIp((HttpServletRequest) asyncContext.getRequest()), "polling", clientMd5Map.size(), probeRequestSize);
@@ -396,7 +394,7 @@ public class LongPollingService {
                     }
                 }
             }, timeoutTime, TimeUnit.MILLISECONDS);
-            allSubs.add(this);
+            allSubs.add(this); // 2.无论配置是否更新，最终都会进行响应，延迟29.5s执行，然后把自己添加到一个队列中
         }
         void sendResponse(List<String> changedGroups) {
             // Cancel time out task.
@@ -433,7 +431,7 @@ public class LongPollingService {
             this.probeRequestSize = probeRequestSize;
             this.createTime = System.currentTimeMillis();
             this.ip = ip;
-            this.timeoutTime = timeoutTime;
+            this.timeoutTime = timeoutTime; // 传入时间一般为29.5s用于延迟执行的时间
             this.appName = appName;
             this.tag = tag;
         }
@@ -468,7 +466,6 @@ public class LongPollingService {
         if (null == changedGroups) {
             return;
         }
-
         try {
             final String respString = MD5Util.compareMd5ResultString(changedGroups);
             // Disable cache.

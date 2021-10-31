@@ -194,8 +194,7 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
     }
 
     @Override
-    public void addConfigInfo4Beta(ConfigInfo configInfo, String betaIps, String srcIp, String srcUser, Timestamp time,
-            boolean notify) {
+    public void addConfigInfo4Beta(ConfigInfo configInfo, String betaIps, String srcIp, String srcUser, Timestamp time, boolean notify) {
         String appNameTmp = StringUtils.isBlank(configInfo.getAppName()) ? StringUtils.EMPTY : configInfo.getAppName();
         String tenantTmp = StringUtils.isBlank(configInfo.getTenant()) ? StringUtils.EMPTY : configInfo.getTenant();
         String md5 = MD5Utils.md5Hex(configInfo.getContent(), Constants.ENCODE);
@@ -262,14 +261,12 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
     }
 
     @Override
-    public void updateConfigInfo4Beta(ConfigInfo configInfo, String betaIps, String srcIp, String srcUser,
-            Timestamp time, boolean notify) {
+    public void updateConfigInfo4Beta(ConfigInfo configInfo, String betaIps, String srcIp, String srcUser, Timestamp time, boolean notify) {
         String appNameTmp = StringUtils.isBlank(configInfo.getAppName()) ? StringUtils.EMPTY : configInfo.getAppName();
         String tenantTmp = StringUtils.isBlank(configInfo.getTenant()) ? StringUtils.EMPTY : configInfo.getTenant();
         String md5 = MD5Utils.md5Hex(configInfo.getContent(), Constants.ENCODE);
         try {
-            jt.update(
-                    "UPDATE config_info_beta SET content=?, md5 = ?, src_ip=?,src_user=?,gmt_modified=?,app_name=? WHERE "
+            jt.update("UPDATE config_info_beta SET content=?, md5 = ?, src_ip=?,src_user=?,gmt_modified=?,app_name=? WHERE "
                             + "data_id=? AND group_id=? AND tenant_id=?", configInfo.getContent(), md5, srcIp, srcUser,
                     time, appNameTmp, configInfo.getDataId(), configInfo.getGroup(), tenantTmp);
         } catch (CannotGetJdbcConnectionException e) {
@@ -297,9 +294,8 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
     }
 
     @Override
-    public void insertOrUpdateBeta(final ConfigInfo configInfo, final String betaIps, final String srcIp,
-            final String srcUser, final Timestamp time, final boolean notify) {
-        try {
+    public void insertOrUpdateBeta(final ConfigInfo configInfo, final String betaIps, final String srcIp, final String srcUser, final Timestamp time, final boolean notify) {
+        try { // 若不存在则插入，存在则通过异常捕获的方式更新
             addConfigInfo4Beta(configInfo, betaIps, srcIp, null, time, notify);
         } catch (DataIntegrityViolationException ive) { // Unique constraint conflict
             updateConfigInfo4Beta(configInfo, betaIps, srcIp, null, time, notify);
@@ -307,8 +303,7 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
     }
 
     @Override
-    public void insertOrUpdateTag(final ConfigInfo configInfo, final String tag, final String srcIp,
-            final String srcUser, final Timestamp time, final boolean notify) {
+    public void insertOrUpdateTag(final ConfigInfo configInfo, final String tag, final String srcIp, final String srcUser, final Timestamp time, final boolean notify) {
         try {
             addConfigInfo4Tag(configInfo, tag, srcIp, null, time, notify);
         } catch (DataIntegrityViolationException ive) { // Unique constraint conflict

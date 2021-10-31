@@ -32,29 +32,29 @@ import java.util.ServiceLoader;
  * @author rushsky518
  */
 public class ConfigChangeHandler {
-    
+
     private static class ConfigChangeHandlerHolder {
-        
+
         private static final ConfigChangeHandler INSTANCE = new ConfigChangeHandler();
     }
-    
+
     private ConfigChangeHandler() {
         this.parserList = new LinkedList<ConfigChangeParser>();
-        
+
         ServiceLoader<ConfigChangeParser> loader = ServiceLoader.load(ConfigChangeParser.class);
         Iterator<ConfigChangeParser> itr = loader.iterator();
         while (itr.hasNext()) {
             this.parserList.add(itr.next());
         }
-        
+
         this.parserList.add(new PropertiesChangeParser());
         this.parserList.add(new YmlChangeParser());
     }
-    
+
     public static ConfigChangeHandler getInstance() {
         return ConfigChangeHandlerHolder.INSTANCE;
     }
-    
+
     /**
      * Parse changed data.
      *
@@ -70,10 +70,9 @@ public class ConfigChangeHandler {
                 return changeParser.doParse(oldContent, newContent, type);
             }
         }
-        
         return Collections.emptyMap();
     }
-    
+
     private final List<ConfigChangeParser> parserList;
-    
+
 }

@@ -85,7 +85,7 @@ public class NacosConfigService implements ConfigService {
 
         this.agent = new MetricsHttpAgent(new ServerHttpAgent(properties)); // 用来向Nacos Server即配置的注册中心发起请求的代理
         this.agent.start();
-        this.worker = new ClientWorker(this.agent, this.configFilterChainManager, properties); // 客户端工作类
+        this.worker = new ClientWorker(this.agent, this.configFilterChainManager, properties); // 客户端工作类，创建一个LongPollingRunnable用来监听配置更新
     }
 
     private void initNamespace(Properties properties) {
@@ -107,6 +107,7 @@ public class NacosConfigService implements ConfigService {
 
     @Override
     public void addListener(String dataId, String group, Listener listener) throws NacosException {
+        // 在NacosContextRefresher中onApplicationEvent中监听ApplicationReadyEvent事件时为每一个dataId注册了一个监听器，调用本方法添加创建的监听器
         worker.addTenantListeners(dataId, group, Arrays.asList(listener));
     }
 
@@ -137,8 +138,7 @@ public class NacosConfigService implements ConfigService {
         cr.setDataId(dataId);
         cr.setTenant(tenant); // namespace
         cr.setGroup(group);
-        // 优先使用本地配置
-        String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
+        String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);// 优先使用本地配置
         if (content != null) { // 若从本地文件中读取到配置
             LOGGER.warn("[{}] [get-config] get failover ok, dataId={}, group={}, tenant={}, config={}", agent.getName(), dataId, group, tenant, ContentUtils.truncateContent(content));
             cr.setContent(content);

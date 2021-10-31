@@ -75,16 +75,14 @@ public class ConfigServletInner {
     /**
      * 轮询接口.
      */
-    public String doPollingConfig(HttpServletRequest request, HttpServletResponse response,
-            Map<String, String> clientMd5Map, int probeRequestSize) throws IOException {
-        // Long polling.
-        if (LongPollingService.isSupportLongPolling(request)) {
+    public String doPollingConfig(HttpServletRequest request, HttpServletResponse response, Map<String, String> clientMd5Map, int probeRequestSize) throws IOException {
+        if (LongPollingService.isSupportLongPolling(request)) { // 若支持长连接
             longPollingService.addLongPollingClient(request, response, clientMd5Map, probeRequestSize);
             return HttpServletResponse.SC_OK + "";
         }
+        // // 遍历从缓存中获取数据比较缓存内容的的MD5值是否相等，返回不相等的groupKey列表，最终将有变更的配置返给请求方
         // Compatible with short polling logic.
         List<String> changedGroups = MD5Util.compareMd5(request, response, clientMd5Map);
-
         // Compatible with short polling result.
         String oldResult = MD5Util.compareMd5OldResult(changedGroups);
         String newResult = MD5Util.compareMd5ResultString(changedGroups);
@@ -94,7 +92,6 @@ public class ConfigServletInner {
             version = "2.0.0";
         }
         int versionNum = Protocol.getVersionNumber(version);
-
         // Befor 2.0.4 version, return value is put into header.
         if (versionNum < START_LONG_POLLING_VERSION_NUM) {
             response.addHeader(Constants.PROBE_MODIFY_RESPONSE, oldResult);
@@ -102,9 +99,7 @@ public class ConfigServletInner {
         } else {
             request.setAttribute("content", newResult);
         }
-
         Loggers.AUTH.info("new content:" + newResult);
-
         // Disable cache.
         response.setHeader("Pragma", "no-cache");
         response.setDateHeader("Expires", 0);
@@ -116,8 +111,7 @@ public class ConfigServletInner {
     /**
      * Execute to get config API.
      */
-    public String doGetConfig(HttpServletRequest request, HttpServletResponse response, String dataId, String group,
-            String tenant, String tag, String clientIp) throws IOException, ServletException {
+    public String doGetConfig(HttpServletRequest request, HttpServletResponse response, String dataId, String group, String tenant, String tag, String clientIp) throws IOException, ServletException {
         final String groupKey = GroupKey2.getKey(dataId, group, tenant);
         String autoTag = request.getHeader("Vipserver-Tag");
         String requestIpApp = RequestUtil.getAppName(request);
