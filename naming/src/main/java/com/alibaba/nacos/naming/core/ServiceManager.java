@@ -436,7 +436,6 @@ public class ServiceManager implements RecordListener<Service> {
                 service.getClusterMap().put(cluster.getName(), cluster);
             }
             service.validate();
-
             putServiceAndInit(service); // 将Service添加到注册表中，添加心跳监控检查，以及创建RecordListener
             if (!local) {
                 addOrReplaceService(service);

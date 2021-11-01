@@ -104,7 +104,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @Override
     public void put(String key, Record value) throws NacosException {
-        onPut(key, value); // 若是ephemeral实例将其添加到DataStore缓存中，然后通过一部任务替换注册表中实例列表
+        onPut(key, value); // 若是ephemeral实例将其添加到DataStore缓存中，然后通过异步任务替换注册表中实例列表
         // 同步实例数据到其它服务端成员列表中，是将当前服务名称下所有实例同步到其他服务端，最终是通过异步任务加队列的方式，调用HTTP接口最终在其他服务上也是通过onPut方法来完成
         distroProtocol.sync(new DistroKey(key, KeyBuilder.INSTANCE_LIST_KEY_PREFIX), DataOperation.CHANGE, globalConfig.getTaskDispatchPeriod() / 2);
     }
