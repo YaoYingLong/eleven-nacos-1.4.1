@@ -100,7 +100,6 @@ public class HostReactor implements Closeable {
                 return thread;
             }
         });
-
         this.beatReactor = beatReactor;
         this.serverProxy = serverProxy;
         this.cacheDir = cacheDir;
@@ -113,10 +112,9 @@ public class HostReactor implements Closeable {
         this.updatingMap = new ConcurrentHashMap<String, Object>();
         this.failoverReactor = new FailoverReactor(this, cacheDir);
         this.pushReceiver = new PushReceiver(this);
-        this.notifier = new InstancesChangeNotifier();
-
-        NotifyCenter.registerToPublisher(InstancesChangeEvent.class, 16384);
-        NotifyCenter.registerSubscriber(notifier);
+        this.notifier = new InstancesChangeNotifier(); // 实例化一个实例变更通知
+        NotifyCenter.registerToPublisher(InstancesChangeEvent.class, 16384); // 发布一个实例变更事件
+        NotifyCenter.registerSubscriber(notifier); // 注册为InstancesChange事件订阅者
     }
 
     public Map<String, ServiceInfo> getServiceInfoMap() {
@@ -163,7 +161,6 @@ public class HostReactor implements Closeable {
     public ServiceInfo processServiceJson(String json) {
         ServiceInfo serviceInfo = JacksonUtils.toObj(json, ServiceInfo.class);
         ServiceInfo oldService = serviceInfoMap.get(serviceInfo.getKey());
-
         if (pushEmptyProtection && !serviceInfo.validate()) {
             //empty or error push, just ignore
             return oldService;
@@ -220,33 +217,23 @@ public class HostReactor implements Closeable {
                 updateBeatInfo(modHosts);
                 NAMING_LOGGER.info("modified ips(" + modHosts.size() + ") service: " + serviceInfo.getKey() + " -> " + JacksonUtils.toJson(modHosts));
             }
-
             serviceInfo.setJsonFromServer(json);
-
             if (newHosts.size() > 0 || remvHosts.size() > 0 || modHosts.size() > 0) {
-                NotifyCenter.publishEvent(new InstancesChangeEvent(serviceInfo.getName(), serviceInfo.getGroupName(),
-                        serviceInfo.getClusters(), serviceInfo.getHosts()));
+                NotifyCenter.publishEvent(new InstancesChangeEvent(serviceInfo.getName(), serviceInfo.getGroupName(), serviceInfo.getClusters(), serviceInfo.getHosts()));
                 DiskCache.write(serviceInfo, cacheDir);
             }
-
         } else {
             changed = true;
-            NAMING_LOGGER.info("init new ips(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() + " -> "
-                    + JacksonUtils.toJson(serviceInfo.getHosts()));
+            NAMING_LOGGER.info("init new ips(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() + " -> " + JacksonUtils.toJson(serviceInfo.getHosts()));
             serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
-            NotifyCenter.publishEvent(new InstancesChangeEvent(serviceInfo.getName(), serviceInfo.getGroupName(),
-                    serviceInfo.getClusters(), serviceInfo.getHosts()));
+            NotifyCenter.publishEvent(new InstancesChangeEvent(serviceInfo.getName(), serviceInfo.getGroupName(), serviceInfo.getClusters(), serviceInfo.getHosts()));
             serviceInfo.setJsonFromServer(json);
             DiskCache.write(serviceInfo, cacheDir);
         }
-
         MetricsMonitor.getServiceInfoMapSizeMonitor().set(serviceInfoMap.size());
-
         if (changed) {
-            NAMING_LOGGER.info("current ips:(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() + " -> "
-                    + JacksonUtils.toJson(serviceInfo.getHosts()));
+            NAMING_LOGGER.info("current ips:(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() + " -> " + JacksonUtils.toJson(serviceInfo.getHosts()));
         }
-
         return serviceInfo;
     }
 
@@ -261,9 +248,7 @@ public class HostReactor implements Closeable {
     }
 
     private ServiceInfo getServiceInfo0(String serviceName, String clusters) {
-
         String key = ServiceInfo.getKey(serviceName, clusters);
-
         return serviceInfoMap.get(key);
     }
 
@@ -277,41 +262,31 @@ public class HostReactor implements Closeable {
     }
 
     public ServiceInfo getServiceInfo(final String serviceName, final String clusters) {
-
         NAMING_LOGGER.debug("failover-mode: " + failoverReactor.isFailoverSwitch());
         String key = ServiceInfo.getKey(serviceName, clusters);
         if (failoverReactor.isFailoverSwitch()) {
             return failoverReactor.getService(key);
         }
-
         ServiceInfo serviceObj = getServiceInfo0(serviceName, clusters);
-
-        if (null == serviceObj) {
+        if (null == serviceObj) { // 若通过服务名称从缓存列表中未获取到信息
             serviceObj = new ServiceInfo(serviceName, clusters);
-
             serviceInfoMap.put(serviceObj.getKey(), serviceObj);
-
             updatingMap.put(serviceName, new Object());
             updateServiceNow(serviceName, clusters);
             updatingMap.remove(serviceName);
-
-        } else if (updatingMap.containsKey(serviceName)) {
-
+        } else if (updatingMap.containsKey(serviceName)) { // 若服务正在更新
             if (UPDATE_HOLD_INTERVAL > 0) {
                 // hold a moment waiting for update finish
                 synchronized (serviceObj) {
                     try {
                         serviceObj.wait(UPDATE_HOLD_INTERVAL);
                     } catch (InterruptedException e) {
-                        NAMING_LOGGER
-                                .error("[getServiceInfo] serviceName:" + serviceName + ", clusters:" + clusters, e);
+                        NAMING_LOGGER.error("[getServiceInfo] serviceName:" + serviceName + ", clusters:" + clusters, e);
                     }
                 }
             }
         }
-
         scheduleUpdateIfAbsent(serviceName, clusters);
-
         return serviceInfoMap.get(serviceObj.getKey());
     }
 
@@ -333,12 +308,10 @@ public class HostReactor implements Closeable {
         if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
             return;
         }
-
         synchronized (futureMap) {
             if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
                 return;
             }
-
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, clusters));
             futureMap.put(ServiceInfo.getKey(serviceName, clusters), future);
         }
@@ -352,10 +325,8 @@ public class HostReactor implements Closeable {
      */
     public void updateService(String serviceName, String clusters) throws NacosException {
         ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
-        try {
-
+        try { // 调用服务端/v1/ns/instance/list接口获取服务列表
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUdpPort(), false);
-
             if (StringUtils.isNotEmpty(result)) {
                 processServiceJson(result);
             }
@@ -426,15 +397,12 @@ public class HostReactor implements Closeable {
         @Override
         public void run() {
             long delayTime = DEFAULT_DELAY;
-
             try {
                 ServiceInfo serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
-
                 if (serviceObj == null) {
                     updateService(serviceName, clusters);
                     return;
                 }
-
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
                     updateService(serviceName, clusters);
                     serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
@@ -443,9 +411,7 @@ public class HostReactor implements Closeable {
                     // since the push data may be different from pull through force push
                     refreshOnly(serviceName, clusters);
                 }
-
                 lastRefTime = serviceObj.getLastRefTime();
-
                 if (!notifier.isSubscribed(serviceName, clusters) && !futureMap
                         .containsKey(ServiceInfo.getKey(serviceName, clusters))) {
                     // abort the update task
