@@ -567,7 +567,6 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             Loggers.PUSH.error("[NACOS-PUSH] ackEntry is null.");
             return null;
         }
-
         if (ackEntry.getRetryTimes() > MAX_RETRY_TIMES) {
             Loggers.PUSH.warn("max re-push times reached, retry times {}, key: {}", ackEntry.retryTimes, ackEntry.key);
             ackMap.remove(ackEntry.key);
@@ -575,30 +574,22 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             failedPush += 1;
             return ackEntry;
         }
-
         try {
             if (!ackMap.containsKey(ackEntry.key)) {
                 totalPush++;
             }
             ackMap.put(ackEntry.key, ackEntry);
             udpSendTimeMap.put(ackEntry.key, System.currentTimeMillis());
-
             Loggers.PUSH.info("send udp packet: " + ackEntry.key);
             udpSocket.send(ackEntry.origin);
-
             ackEntry.increaseRetryTime();
-
-            GlobalExecutor.scheduleRetransmitter(new Retransmitter(ackEntry),
-                    TimeUnit.NANOSECONDS.toMillis(ACK_TIMEOUT_NANOS), TimeUnit.MILLISECONDS);
-
+            GlobalExecutor.scheduleRetransmitter(new Retransmitter(ackEntry), TimeUnit.NANOSECONDS.toMillis(ACK_TIMEOUT_NANOS), TimeUnit.MILLISECONDS);
             return ackEntry;
         } catch (Exception e) {
-            Loggers.PUSH.error("[NACOS-PUSH] failed to push data: {} to client: {}, error: {}", ackEntry.data,
-                    ackEntry.origin.getAddress().getHostAddress(), e);
+            Loggers.PUSH.error("[NACOS-PUSH] failed to push data: {} to client: {}, error: {}", ackEntry.data, ackEntry.origin.getAddress().getHostAddress(), e);
             ackMap.remove(ackEntry.key);
             udpSendTimeMap.remove(ackEntry.key);
             failedPush += 1;
-
             return null;
         }
     }
