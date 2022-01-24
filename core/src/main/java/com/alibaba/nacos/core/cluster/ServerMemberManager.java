@@ -127,7 +127,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         this.self.setExtendVal(MemberMetaDataConstants.VERSION, VersionUtils.version); // 初始化元数据中的nacos版本号
         serverList.put(self.getAddress(), self); // 将本机添加到服务端列表中
         // register NodeChangeEvent publisher to NotifyManager
-        registerClusterEvent();
+        registerClusterEvent(); // 注册MembersChangeEvent服务端节点变更事件和IP变更事件IPChangeEvent
         // Initializes the lookup mode
         initAndStartLookup();
         if (serverList.isEmpty()) {
@@ -149,26 +149,21 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     private void registerClusterEvent() {
         // Register node change events 注册服务端节点变更事件
         NotifyCenter.registerToPublisher(MembersChangeEvent.class, EnvUtil.getProperty("nacos.member-change-event.queue.size", Integer.class, 128));
-        // The address information of this node needs to be dynamically modified
-        // when registering the IP change of this node
+        // The address information of this node needs to be dynamically modified when registering the IP change of this node
         NotifyCenter.registerSubscriber(new Subscriber<InetUtils.IPChangeEvent>() {
             @Override
-            public void onEvent(InetUtils.IPChangeEvent event) {
+            public void onEvent(InetUtils.IPChangeEvent event) { // 注册节点IP变更时需要动态修改该节点地址信息
                 String newAddress = event.getNewIP() + ":" + port;
                 ServerMemberManager.this.localAddress = newAddress;
                 EnvUtil.setLocalAddress(localAddress);
-
                 Member self = ServerMemberManager.this.self;
                 self.setIp(event.getNewIP());
-
                 String oldAddress = event.getOldIP() + ":" + port;
-                ServerMemberManager.this.serverList.remove(oldAddress);
+                ServerMemberManager.this.serverList.remove(oldAddress); // 移除老的地址
                 ServerMemberManager.this.serverList.put(newAddress, self);
-
                 ServerMemberManager.this.memberAddressInfos.remove(oldAddress);
                 ServerMemberManager.this.memberAddressInfos.add(newAddress);
             }
-
             @Override
             public Class<? extends Event> subscribeType() {
                 return InetUtils.IPChangeEvent.class;
@@ -265,7 +260,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         }
         // 是否包含本机地址
         boolean isContainSelfIp = members.stream().anyMatch(ipPortTmp -> Objects.equals(localAddress, ipPortTmp.getAddress()));
-
         if (isContainSelfIp) {
             isInIpList = true;  // 包含本机地址
         } else {

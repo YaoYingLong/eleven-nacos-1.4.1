@@ -124,6 +124,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         Future future = GlobalExecutor.scheduleUdpSender(() -> { // 每1s执行一次
             try {
                 Loggers.PUSH.info(serviceName + " is changed, add it to push queue.");
+                // 客户端拉取某个服务时，会将客户端记录下来
                 ConcurrentMap<String, PushClient> clients = clientMap.get(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
                 if (MapUtils.isEmpty(clients)) {
                     return;

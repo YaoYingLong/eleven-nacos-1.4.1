@@ -422,23 +422,23 @@ public class ServiceManager implements RecordListener<Service> {
      */
     public void createServiceIfAbsent(String namespaceId, String serviceName, boolean local, Cluster cluster) throws NacosException {
         Service service = getService(namespaceId, serviceName);
-        if (service == null) {
+        if (service == null) { // 若缓存中namespaceId下无serviceName对应的Service
             Loggers.SRV_LOG.info("creating empty service {}:{}", namespaceId, serviceName);
             service = new Service();
-            service.setName(serviceName);
-            service.setNamespaceId(namespaceId);
+            service.setName(serviceName);   // 设置serviceName
+            service.setNamespaceId(namespaceId);    // 设置namespaceId
             service.setGroupName(NamingUtils.getGroupName(serviceName));
             // now validate the service. if failed, exception will be thrown
             service.setLastModifiedMillis(System.currentTimeMillis()); // 设置服务最新更新时间为当前时间
             service.recalculateChecksum();
-            if (cluster != null) {
+            if (cluster != null) { // cluster传入的是null，故这里Service中clusterMap为空
                 cluster.setService(service);
                 service.getClusterMap().put(cluster.getName(), cluster);
             }
             service.validate();
             putServiceAndInit(service); // 将Service添加到注册表中，添加心跳监控检查，以及创建RecordListener
-            if (!local) {
-                addOrReplaceService(service);
+            if (!local) { // AP模式local为true，CP模式local为false
+                addOrReplaceService(service); // CP模式添加或替换服务
             }
         }
     }
@@ -454,12 +454,12 @@ public class ServiceManager implements RecordListener<Service> {
      * @throws Exception any error occurred in the process
      */
     public void registerInstance(String namespaceId, String serviceName, Instance instance) throws NacosException {
-        createEmptyService(namespaceId, serviceName, instance.isEphemeral());
-        Service service = getService(namespaceId, serviceName);
+        createEmptyService(namespaceId, serviceName, instance.isEphemeral()); // 若对应的Service不存在，则先创建且放入缓存
+        Service service = getService(namespaceId, serviceName); // 从缓存中获取Service
         if (service == null) {
             throw new NacosException(NacosException.INVALID_PARAM, "service not found, namespace: " + namespaceId + ", service: " + serviceName);
         }
-        addInstance(namespaceId, serviceName, instance.isEphemeral(), instance);
+        addInstance(namespaceId, serviceName, instance.isEphemeral(), instance); // 将实例对象添加到注册表，以及同步给其它服务端成员
     }
 
     /**
@@ -596,7 +596,7 @@ public class ServiceManager implements RecordListener<Service> {
         String key = KeyBuilder.buildInstanceListKey(namespaceId, serviceName, ephemeral);
         Service service = getService(namespaceId, serviceName);
         synchronized (service) {
-            List<Instance> instanceList = addIpAddresses(service, ephemeral, ips); // 获取实例后最新实例列表
+            List<Instance> instanceList = addIpAddresses(service, ephemeral, ips); // 获取实例最新实例列表
             Instances instances = new Instances();
             instances.setInstanceList(instanceList);
             consistencyService.put(key, instances); // 将实例对象添加到注册表，以及同步给其它服务端成员
@@ -729,10 +729,10 @@ public class ServiceManager implements RecordListener<Service> {
         } else {
             instanceMap = new HashMap<>(ips.length); // 不存在缓存数据，创建一个空的Map
         }
-        for (Instance instance : ips) {
+        for (Instance instance : ips) { // 遍历传入的实例列表，创建是一个
             if (!service.getClusterMap().containsKey(instance.getClusterName())) {
                 Cluster cluster = new Cluster(instance.getClusterName(), service);
-                cluster.init();  // 若实例集群不存在，则创建集群
+                cluster.init();  // 若实例集群不存在，则创建集群，且创建CP模式心跳监控检查任务
                 service.getClusterMap().put(instance.getClusterName(), cluster);
                 Loggers.SRV_LOG.warn("cluster: {} not found, ip: {}, will create new cluster with default configuration.", instance.getClusterName(), instance.toJson());
             }
@@ -742,7 +742,7 @@ public class ServiceManager implements RecordListener<Service> {
                 Instance oldInstance = instanceMap.get(instance.getDatumKey());
                 if (oldInstance != null) { // 若存在旧实例，则将新增实例的instanceId替换为旧实例的instanceId
                     instance.setInstanceId(oldInstance.getInstanceId());
-                } else { // 若不存在旧实例则构建一个instanceId
+                } else { // 若不存在旧实例则构建一个instanceId，默认ip#port#clusterName#serviceName
                     instance.setInstanceId(instance.generateInstanceId(currentInstanceIds));
                 }
                 instanceMap.put(instance.getDatumKey(), instance); // 将新增实例放入instanceMap
@@ -778,9 +778,9 @@ public class ServiceManager implements RecordListener<Service> {
 
     public Service getService(String namespaceId, String serviceName) {
         if (serviceMap.get(namespaceId) == null) {
-            return null;
+            return null; // 若namespaceId对应的Service Map都不存在
         }
-        return chooseServiceMap(namespaceId).get(serviceName);
+        return chooseServiceMap(namespaceId).get(serviceName); // 从缓存serviceMap中获取serviceName的Service
     }
 
     public boolean containService(String namespaceId, String serviceName) {
@@ -794,18 +794,18 @@ public class ServiceManager implements RecordListener<Service> {
      */
     public void putService(Service service) {
         if (!serviceMap.containsKey(service.getNamespaceId())) {
-            synchronized (putServiceLock) {
+            synchronized (putServiceLock) { // 若namespaceId对应的Map不存在，则先创建一个ConcurrentSkipListMap
                 if (!serviceMap.containsKey(service.getNamespaceId())) {
                     serviceMap.put(service.getNamespaceId(), new ConcurrentSkipListMap<>());
                 }
             }
         }
-        serviceMap.get(service.getNamespaceId()).put(service.getName(), service);
+        serviceMap.get(service.getNamespaceId()).put(service.getName(), service); // 将服务添加到注册表
     }
 
     private void putServiceAndInit(Service service) throws NacosException {
         putService(service); // 将服务添加到注册表
-        service.init(); // 心跳检查注册
+        service.init(); // 心跳检查注册，创建时不会创建CP模式心跳监控检查任务
         consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);
         consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), service);
         Loggers.SRV_LOG.info("[NEW-SERVICE] {}", service.toJson());

@@ -135,7 +135,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             dataStore.put(key, datum); // 更新缓存数据
         }
         if (!listeners.containsKey(key)) {
-            return;
+            return; // 若对应的RecordListener不存在则直接跳过，一般在创建实例时会添加该监听器
         }
         notifier.addTask(key, DataOperation.CHANGE);
     }
@@ -348,7 +348,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             Loggers.DISTRO.info("distro notifier started");
             for (; ; ) {
                 try {
-                    Pair<String, DataOperation> pair = tasks.take();
+                    Pair<String, DataOperation> pair = tasks.take(); // 阻塞消费队列
                     handle(pair);
                 } catch (Throwable e) {
                     Loggers.DISTRO.error("[NACOS-DISTRO] Error while handling notifying task", e);

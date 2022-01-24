@@ -189,7 +189,7 @@ public class RaftCore implements Closeable {
             Map<String, String> parameters = new HashMap<>(1);
             parameters.put("key", key);
             final RaftPeer leader = getLeader();
-            raftProxy.proxyPostLarge(leader.ip, API_PUB, params.toString(), parameters); // 将数据发送到leader节点的/raft/datum接口
+            raftProxy.proxyPostLarge(leader.ip, API_PUB, params.toString(), parameters); // 将数据发送到leader节点的/v1/ns/raft/datum接口
             return;
         }
         OPERATE_LOCK.lock();

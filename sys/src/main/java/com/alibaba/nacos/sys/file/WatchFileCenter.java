@@ -50,20 +50,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
 public class WatchFileCenter {
-    
+
     private static final Logger LOGGER = LoggerFactory.getLogger(WatchFileCenter.class);
-    
+
     /**
      * Maximum number of monitored file directories.
      */
     private static final int MAX_WATCH_FILE_JOB = Integer.getInteger("nacos.watch-file.max-dirs", 16);
-    
+
     private static final Map<String, WatchDirJob> MANAGER = new HashMap<String, WatchDirJob>(MAX_WATCH_FILE_JOB);
-    
+
     private static final FileSystem FILE_SYSTEM = FileSystems.getDefault();
-    
+
     private static final AtomicBoolean CLOSED = new AtomicBoolean(false);
-    
+
     static {
         ThreadUtils.addShutdownHook(new Runnable() {
             @Override
@@ -72,13 +72,13 @@ public class WatchFileCenter {
             }
         });
     }
-    
+
     /**
      * The number of directories that are currently monitored.
      */
     @SuppressWarnings("checkstyle:StaticVariableName")
     private static int NOW_WATCH_JOB_CNT = 0;
-    
+
     /**
      * Register {@link FileWatcher} in this directory.
      *
@@ -102,7 +102,7 @@ public class WatchFileCenter {
         job.addSubscribe(watcher);
         return true;
     }
-    
+
     /**
      * Deregister all {@link FileWatcher} in this directory.
      *
@@ -119,7 +119,7 @@ public class WatchFileCenter {
         }
         return false;
     }
-    
+
     /**
      * close {@link WatchFileCenter}.
      */
@@ -140,7 +140,7 @@ public class WatchFileCenter {
         NOW_WATCH_JOB_CNT = 0;
         LOGGER.warn("[WatchFileCenter] already closed");
     }
-    
+
     /**
      * Deregister {@link FileWatcher} in this directory.
      *
@@ -156,19 +156,19 @@ public class WatchFileCenter {
         }
         return false;
     }
-    
+
     private static class WatchDirJob extends Thread {
-        
+
         private ExecutorService callBackExecutor;
-        
+
         private final String paths;
-        
+
         private WatchService watchService;
-        
+
         private volatile boolean watch = true;
-        
+
         private Set<FileWatcher> watchers = new ConcurrentHashSet<>();
-        
+
         public WatchDirJob(String paths) throws NacosException {
             setName(paths);
             this.paths = paths;
@@ -176,11 +176,8 @@ public class WatchFileCenter {
             if (!p.toFile().isDirectory()) {
                 throw new IllegalArgumentException("Must be a file directory : " + paths);
             }
-            
-            this.callBackExecutor = ExecutorFactory
-                    .newSingleExecutorService(new NameThreadFactory("com.alibaba.nacos.sys.file.watch-" + paths));
-            
-            try {
+            this.callBackExecutor = ExecutorFactory.newSingleExecutorService(new NameThreadFactory("com.alibaba.nacos.sys.file.watch-" + paths));
+            try { // 监听指定路径的文件的覆盖、修改、创建、数据删除
                 WatchService service = FILE_SYSTEM.newWatchService();
                 p.register(service, StandardWatchEventKinds.OVERFLOW, StandardWatchEventKinds.ENTRY_MODIFY,
                         StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE);
@@ -189,16 +186,16 @@ public class WatchFileCenter {
                 throw new NacosException(NacosException.SERVER_ERROR, ex);
             }
         }
-        
+
         void addSubscribe(final FileWatcher watcher) {
             watchers.add(watcher);
         }
-        
+
         void shutdown() {
             watch = false;
             ThreadUtils.shutdownThreadPool(this.callBackExecutor);
         }
-        
+
         @Override
         public void run() {
             while (watch) {
@@ -217,7 +214,6 @@ public class WatchFileCenter {
                         public void run() {
                             for (WatchEvent<?> event : events) {
                                 WatchEvent.Kind<?> kind = event.kind();
-                                
                                 // Since the OS's event cache may be overflow, a backstop is needed
                                 if (StandardWatchEventKinds.OVERFLOW.equals(kind)) {
                                     eventOverflow();
@@ -234,7 +230,7 @@ public class WatchFileCenter {
                 }
             }
         }
-        
+
         private void eventProcess(Object context) {
             final FileChangeEvent fileChangeEvent = FileChangeEvent.builder().paths(paths).context(context).build();
             final String str = String.valueOf(context);
@@ -259,7 +255,7 @@ public class WatchFileCenter {
                 }
             }
         }
-        
+
         private void eventOverflow() {
             File dir = Paths.get(paths).toFile();
             for (File file : Objects.requireNonNull(dir.listFiles())) {
@@ -270,9 +266,9 @@ public class WatchFileCenter {
                 eventProcess(file.getName());
             }
         }
-        
+
     }
-    
+
     private static void checkState() {
         if (CLOSED.get()) {
             throw new IllegalStateException("WatchFileCenter already shutdown");

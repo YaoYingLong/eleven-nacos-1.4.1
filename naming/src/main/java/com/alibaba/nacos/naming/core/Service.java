@@ -575,8 +575,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
      */
     public void validate() {
         if (!getName().matches(SERVICE_NAME_SYNTAX)) {
-            throw new IllegalArgumentException(
-                    "dom name can only have these characters: 0-9a-zA-Z-._:, current: " + getName());
+            throw new IllegalArgumentException("dom name can only have these characters: 0-9a-zA-Z-._:, current: " + getName());
         }
         for (Cluster cluster : clusterMap.values()) {
             cluster.validate();

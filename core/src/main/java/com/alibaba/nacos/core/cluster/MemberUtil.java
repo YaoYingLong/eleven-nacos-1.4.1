@@ -69,7 +69,6 @@ public class MemberUtil {
         // Nacos default port is 8848
         int defaultPort = 8848;
         // Set the default Raft port information for securit
-
         String address = member;
         int port = defaultPort;
         String[] info = IPUtil.splitIPPortStr(address);
@@ -77,9 +76,7 @@ public class MemberUtil {
             address = info[0];
             port = Integer.parseInt(info[1]);
         }
-
         Member target = Member.builder().ip(address).port(port).state(NodeState.UP).build();
-
         Map<String, Object> extendInfo = new HashMap<>(4);
         // The Raft Port information needs to be set by default
         extendInfo.put(MemberMetaDataConstants.RAFT_PORT, String.valueOf(calculateRaftPort(target)));
@@ -201,12 +198,10 @@ public class MemberUtil {
      */
     public static Collection<Member> readServerConf(Collection<String> members) {
         Set<Member> nodes = new HashSet<>();
-
         for (String member : members) {
             Member target = singleParse(member);
             nodes.add(target);
         }
-
         return nodes;
     }
 

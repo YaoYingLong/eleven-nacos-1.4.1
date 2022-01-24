@@ -41,9 +41,8 @@ public class FileConfigMemberLookup extends AbstractMemberLookup {
     private FileWatcher watcher = new FileWatcher() {
         @Override
         public void onChange(FileChangeEvent event) {
-            readClusterConfFromDisk();
+            readClusterConfFromDisk(); // 若文件发生改变，则重新加载文件内容
         }
-
         @Override
         public boolean interest(String context) {
             return StringUtils.contains(context, "cluster.conf");
@@ -56,7 +55,7 @@ public class FileConfigMemberLookup extends AbstractMemberLookup {
             readClusterConfFromDisk(); // 从磁盘读取集群配置文件
             // Use the inotify mechanism to monitor file changes and automatically
             // trigger the reading of cluster.conf
-            try {
+            try { // 注册配置文件变更监听器，当文件变更后重新加载
                 WatchFileCenter.registerWatcher(EnvUtil.getConfPath(), watcher);
             } catch (Throwable e) {
                 Loggers.CLUSTER.error("An exception occurred in the launch file monitor : {}", e.getMessage());
@@ -77,6 +76,6 @@ public class FileConfigMemberLookup extends AbstractMemberLookup {
         } catch (Throwable e) {
             Loggers.CLUSTER.error("nacos-XXXX [serverlist] failed to get serverlist from disk!, error : {}", e.getMessage());
         }
-        afterLookup(tmpMembers);
+        afterLookup(tmpMembers); // 调用ServerMemberManager的memberChange方法
     }
 }

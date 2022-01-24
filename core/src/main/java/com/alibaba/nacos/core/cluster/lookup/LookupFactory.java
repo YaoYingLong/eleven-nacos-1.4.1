@@ -50,7 +50,7 @@ public final class LookupFactory {
      */
     public static MemberLookup createLookUp(ServerMemberManager memberManager) throws NacosException {
         if (!EnvUtil.getStandaloneMode()) { // 集群模式启动
-            String lookupType = EnvUtil.getProperty(LOOKUP_MODE_TYPE); // 默认为null
+            String lookupType = EnvUtil.getProperty(LOOKUP_MODE_TYPE); // 默认nacos.core.member.lookup.type为null
             LookupType type = chooseLookup(lookupType); // 默认为FILE_CONFIG
             LOOK_UP = find(type);
             currentLookupType = type;
@@ -96,7 +96,7 @@ public final class LookupFactory {
     private static MemberLookup find(LookupType type) {
         if (LookupType.FILE_CONFIG.equals(type)) {
             LOOK_UP = new FileConfigMemberLookup();
-            return LOOK_UP;
+            return LOOK_UP; // 默认返回
         }
         if (LookupType.ADDRESS_SERVER.equals(type)) {
             LOOK_UP = new AddressServerMemberLookup();
@@ -107,7 +107,7 @@ public final class LookupFactory {
     }
 
     private static LookupType chooseLookup(String lookupType) {
-        if (StringUtils.isNotBlank(lookupType)) {
+        if (StringUtils.isNotBlank(lookupType)) { // 默认lookupType传入的null
             LookupType type = LookupType.sourceOf(lookupType);
             if (Objects.nonNull(type)) {
                 return type;
@@ -115,7 +115,7 @@ public final class LookupFactory {
         }
         File file = new File(EnvUtil.getClusterConfFilePath());
         if (file.exists() || StringUtils.isNotBlank(EnvUtil.getMemberList())) {
-            return LookupType.FILE_CONFIG;
+            return LookupType.FILE_CONFIG; // 默认返回
         }
         return LookupType.ADDRESS_SERVER;
     }

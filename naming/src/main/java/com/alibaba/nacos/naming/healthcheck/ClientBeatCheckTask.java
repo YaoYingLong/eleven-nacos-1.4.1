@@ -80,9 +80,9 @@ public class ClientBeatCheckTask implements Runnable {
                 return; // 当前客户端服务不是注册在当前的服务端上
             }
             if (!getSwitchDomain().isHealthCheckEnabled()) {
-                return;
+                return; // 若不允许健康检查则跳过
             }
-            List<Instance> instances = service.allIPs(true); // 获取所有ephemeralInstances实例
+            List<Instance> instances = service.allIPs(true); // 获取所有ephemeralInstances实例，即AP模式的实例
             // first set health status of instances:
             for (Instance instance : instances) {
                 if (System.currentTimeMillis() - instance.getLastBeat() > instance.getInstanceHeartBeatTimeOut()) {

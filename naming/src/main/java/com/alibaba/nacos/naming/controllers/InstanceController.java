@@ -122,7 +122,7 @@ public class InstanceController {
         final String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID, Constants.DEFAULT_NAMESPACE_ID);
         final String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
         NamingUtils.checkServiceNameFormat(serviceName);
-        final Instance instance = parseInstance(request);
+        final Instance instance = parseInstance(request); // 解析请求参数为Instance
         serviceManager.registerInstance(namespaceId, serviceName, instance);
         return "ok";
     }
@@ -552,7 +552,6 @@ public class InstanceController {
     }
 
     private Instance parseInstance(HttpServletRequest request) throws Exception {
-
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
         String app = WebUtils.optional(request, "app", "DEFAULT");
         Instance instance = getIpAddress(request);
@@ -566,14 +565,11 @@ public class InstanceController {
         if (StringUtils.isNotEmpty(metadata)) {
             instance.setMetadata(UtilsAndCommons.parseMetadata(metadata));
         }
-
         instance.validate();
-
         return instance;
     }
 
     private Instance getIpAddress(HttpServletRequest request) {
-
         String enabledString = WebUtils.optional(request, "enabled", StringUtils.EMPTY);
         boolean enabled;
         if (StringUtils.isBlank(enabledString)) {
@@ -581,15 +577,12 @@ public class InstanceController {
         } else {
             enabled = BooleanUtils.toBoolean(enabledString);
         }
-
         String weight = WebUtils.optional(request, "weight", "1");
         boolean healthy = BooleanUtils.toBoolean(WebUtils.optional(request, "healthy", "true"));
-
         Instance instance = getBasicIpAddress(request);
         instance.setWeight(Double.parseDouble(weight));
         instance.setHealthy(healthy);
         instance.setEnabled(enabled);
-
         return instance;
     }
 
